@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import Variable from './variable';
+import { Variable, Property, VariablesPropertiesMap } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -27,10 +27,11 @@ function merge(multiMap, otherMultiMap) {
   return multiMap;
 }
 
-function resolveDeclarations(freeIdentifiers, decls, variables) {
+function resolveDeclarations(freeIdentifiers, decls, variables, props) {
   decls.forEachEntry((declarations, name) => {
     let references = freeIdentifiers.get(name) || [];
-    variables = variables.concat(new Variable(name, references, declarations));
+    let properties = props.get(name) || new Property(name);
+    variables = variables.concat(new Variable(name, references, declarations, properties));
     freeIdentifiers.delete(name);
   });
   return variables;
@@ -40,6 +41,7 @@ export default class ScopeState {
   constructor(
     {
       freeIdentifiers = new MultiMap,
+      properties = new VariablesPropertiesMap,
       functionScopedDeclarations = new MultiMap,
       blockScopedDeclarations = new MultiMap,
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
@@ -47,11 +49,13 @@ export default class ScopeState {
       dynamic = false,
       bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
+      lastProperty = new Property, // Will be assigned to the most recent Property object to resolve nested objects like a.b.c.d
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
+    this.properties = properties;
     this.functionScopedDeclarations = functionScopedDeclarations;
     this.blockScopedDeclarations = blockScopedDeclarations;
     this.functionDeclarations = functionDeclarations;
@@ -59,6 +63,7 @@ export default class ScopeState {
     this.dynamic = dynamic;
     this.bindingsForParent = bindingsForParent;
     this.atsForParent = atsForParent;
+    this.lastProperty = lastProperty;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
   }
@@ -74,8 +79,10 @@ export default class ScopeState {
     if (this === b) {
       return this;
     }
+
     return new ScopeState({
       freeIdentifiers: merge(merge(new MultiMap, this.freeIdentifiers), b.freeIdentifiers),
+      properties: this.properties.concat(b.properties),
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -92,6 +99,7 @@ export default class ScopeState {
       dynamic: this.dynamic || b.dynamic,
       bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
       atsForParent: this.atsForParent.concat(b.atsForParent),
+      lastProperty: this.lastProperty.name ? this.lastProperty : b.lastProperty,
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -207,6 +215,7 @@ export default class ScopeState {
     let freeIdentifiers = merge(new MultiMap, this.freeIdentifiers);
     let pvsfd = merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations);
     let children = this.children;
+    let properties = this.properties.getMap();
 
     let hasSimpleCatchBinding = scopeType.name === 'Catch' && astNode.binding.type === 'BindingIdentifier';
     this.blockScopedDeclarations.forEachEntry((v, k) => {
@@ -257,7 +266,7 @@ export default class ScopeState {
         // resolve references to only block-scoped free declarations
         merge(declarations, this.blockScopedDeclarations);
         merge(declarations, this.functionDeclarations);
-        variables = resolveDeclarations(freeIdentifiers, declarations, variables);
+        variables = resolveDeclarations(freeIdentifiers, declarations, variables, properties);
         merge(functionScoped, this.functionScopedDeclarations);
         break;
       case ScopeType.PARAMETERS:
@@ -273,7 +282,7 @@ export default class ScopeState {
           children = [
             new Scope({
               children,
-              variables: resolveDeclarations(freeIdentifiers, this.blockScopedDeclarations, []),
+              variables: resolveDeclarations(freeIdentifiers, this.blockScopedDeclarations, [], properties),
               through: merge(new MultiMap, freeIdentifiers),
               type: ScopeType.SCRIPT,
               isDynamic: this.dynamic,
@@ -302,7 +311,7 @@ export default class ScopeState {
         }
         pvsfd = new MultiMap;
 
-        variables = resolveDeclarations(freeIdentifiers, declarations, variables);
+        variables = resolveDeclarations(freeIdentifiers, declarations, variables, properties);
 
         // no declarations in a module are global
         if (scopeType === ScopeType.MODULE) {

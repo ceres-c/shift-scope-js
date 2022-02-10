@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import Variable from './variable';
+import { Variable } from './variable';
 
 export class ScopeType {
   constructor(name) {

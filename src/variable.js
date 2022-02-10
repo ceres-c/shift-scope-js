@@ -14,10 +14,79 @@
  * limitations under the License.
  */
 
-export default class Variable {
-  constructor(name, references, declarations) {
+export class Variable {
+  constructor(name, references, declarations, variableProperties = new Property) {
     this.name = name;
     this.references = references;
     this.declarations = declarations;
+
+    this.properties = new Map;
+    variableProperties.properties.forEach( (v, k) => this.properties.set(k, v) );
+  }
+}
+
+// Monadic class
+export class Property {
+  constructor( name, { references = [], properties = new Map } = {} ) {
+    this.name = name;
+    this.references = references;
+    this.properties = properties;
+  }
+
+  // Add child property to current property and return new object
+  append(c) {
+    if (this.properties.has(c.name)) {
+      let merged = this.properties.get(c.name).concat(c)
+      this.properties.set(c.name, merged);
+      return merged;
+    } else {
+      this.properties.set(c.name, c);
+      return c;
+    }
+  }
+
+  // Flat concatenation of Property Objects
+  concat(b) {
+    if (this.name != b.name) {
+      throw Error('Merging incompatible properties')
+    }
+
+    let mergeProperties = new Map([...this.properties]);
+    b.properties.forEach( (v, k) => {
+      let thisProps = mergeProperties.get(k) || new Property(k);
+      mergeProperties.set(k, thisProps.concat(v));
+    } );
+
+    return new Property (
+      this.name,
+      {
+        references: [...this.references, ...b.references],
+        properties: mergeProperties,
+      }
+    );
+  }
+}
+
+// Class to associate variables to their properties in a map-like monadic structure. `variables` property is indeed a Map
+export class VariablesPropertiesMap {
+  constructor( { variables = new Map } = {} ) {
+    this.variables = variables;
+  }
+
+  // Recursively concat this object to another concatenating Property-class sub objects as well
+  concat(b) {
+    if (this === b) {
+      return this;
+    }
+    let mergeVariables = new Map([...this.variables]);
+    b.variables.forEach( (v, k) => {
+      let thisVarProps = mergeVariables.get(k) || new Property(k);
+      mergeVariables.set(k, thisVarProps.concat(v));
+    } );
+    return new VariablesPropertiesMap({ variables: mergeVariables });
+  }
+
+  getMap() {
+    return this.variables;
   }
 }
