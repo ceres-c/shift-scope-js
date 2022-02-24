@@ -21,7 +21,7 @@ import { Accessibility, Reference, PropertyReference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Property, VariablesPropertiesMap } from './variable';
+import { Property } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -236,9 +236,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let newProperty = new Property(node.name);
     return new ScopeState({
       freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
-      properties: new VariablesPropertiesMap({variables: new Map([[node.name, newProperty]])}),
-      lastProperty: newProperty,
-    })
+    }).addProperty(newProperty, true); // Adding property to an identifier
   }
 
   reduceIfStatement(node, { test, consequent, alternate }) {
@@ -288,18 +286,16 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   // TODO reduceComputedMember...
   reduceStaticMemberExpression(node, { object }) {
-    let s = super.reduceStaticMemberExpression(node, {object});
-    let newProperty = new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYREAD)] } );
-    s.lastProperty = s.lastProperty.append(newProperty);
-    return s;
+    return super
+      .reduceStaticMemberExpression(node, {object})
+      .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYREAD)] } ) );
   }
 
   // TODO reduceComputedMember...
   reduceStaticMemberAssignmentTarget(node, { object }) {
-    let s = super.reduceStaticMemberAssignmentTarget(node, {object});
-    let newProperty = new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYWRITE)] } );
-    s.lastProperty = s.lastProperty.append(newProperty);
-    return s;
+    return super
+      .reduceStaticMemberAssignmentTarget(node, {object})
+      .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYWRITE)] } ) );
   }
 
   reduceSwitchStatement(node, { discriminant, cases }) {

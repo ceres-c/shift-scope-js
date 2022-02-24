@@ -170,6 +170,17 @@ export default class ScopeState {
     return s;
   }
 
+  addProperty(property, toIdentifier = false) {
+    let s = new ScopeState(this);
+    if (toIdentifier) {
+      s.properties = new VariablesPropertiesMap({variables: new Map([[property.name, property]])});
+      s.lastProperty = property;
+    } else {
+      s.lastProperty = s.lastProperty.append(property);
+    }
+    return s;
+  }
+
   taint() {
     let s = new ScopeState(this);
     s.dynamic = true;
