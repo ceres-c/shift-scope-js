@@ -4,13 +4,19 @@ const { parseScript } = require('shift-parser');
 const ScopeAnalyzer = require('./dist/scope-analyzer');
 // const codegen = require('../utils/codegen');
 
-const input_src = `
-let a = 1;
-a.b = {};
-a.b.c = 5;
-if (a == 5) {
-  a = 1
-}
+let input_src = `
+// let a = 1;
+// a.b = {};
+// a.b.c = 5;
+a['b']['c']['d'] = 1;
+// if (a == 5) {
+//   a = 1
+// }
+`
+
+input_src = `
+a['b']['c']['d'] = 1;
+x.y.z.w = 1;
 `
 
 let tree = parseScript(input_src);

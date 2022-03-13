@@ -80,9 +80,14 @@ export default class ScopeState {
       return this;
     }
 
+    // TODO should this or that be favored as a LAST property (the most recent one)?
+    let lastProperty = this.lastProperty.name ? this.lastProperty : b.lastProperty;
+    let [newProperties, newLastProperty] = this.properties.concat(b.properties, lastProperty);
+    // TODO find a way to avoid explicitly reassigning lastProperty
+
     return new ScopeState({
       freeIdentifiers: merge(merge(new MultiMap, this.freeIdentifiers), b.freeIdentifiers),
-      properties: this.properties.concat(b.properties),
+      properties: newProperties,
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -99,7 +104,7 @@ export default class ScopeState {
       dynamic: this.dynamic || b.dynamic,
       bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
       atsForParent: this.atsForParent.concat(b.atsForParent),
-      lastProperty: this.lastProperty.name ? this.lastProperty : b.lastProperty,
+      lastProperty: newLastProperty,
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -170,7 +175,9 @@ export default class ScopeState {
     return s;
   }
 
+  // Add new top-level property to an identifier or a nested property to another property
   addProperty(property, toIdentifier = false) {
+    // TODO change toIdentifier default to true (it makes more sense)
     let s = new ScopeState(this);
     if (toIdentifier) {
       s.properties = new VariablesPropertiesMap({variables: new Map([[property.name, property]])});
@@ -345,7 +352,7 @@ export default class ScopeState {
 
     const scope =
       scopeType === ScopeType.SCRIPT || scopeType === ScopeType.MODULE
-        ? new GlobalScope({ children, variables, through: freeIdentifiers, astNode })
+        ? new GlobalScope({ children, variables, through: freeIdentifiers, astNode, properties })
         : new Scope({
           children,
           variables,

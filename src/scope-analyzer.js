@@ -161,10 +161,46 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     });
   }
 
+  reduceComputedMemberAssignmentTarget(node, { object, expression }) {
+    if (node.expression.type === 'LiteralStringExpression') {
+      return super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .addProperty( new Property(node.expression.value, { references: [
+          new PropertyReference(node, Accessibility.PROPERTYWRITE)
+        ] } ) )
+        .withParameterExpressions();
+    } else if (node.expression.type.includes('Literal')) {
+      return super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .withParameterExpressions();
+    } else {
+      return super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .addProperty( new Property('*dynamic*', { references: [
+          new PropertyReference(node, Accessibility.PROPERTYWRITE)
+        ] } ) )
+        .withParameterExpressions();
+    }
+  }
+
   reduceComputedMemberExpression(node, { object, expression }) {
-    return super
-      .reduceComputedMemberExpression(node, { object, expression })
-      .withParameterExpressions();
+    if (node.expression.type === 'LiteralStringExpression') {
+      return super.reduceComputedMemberExpression(node, {object, expression})
+        .addProperty( new Property(node.expression.value, { references: [
+          new PropertyReference(node, Accessibility.PROPERTYREAD)
+        ] } ) )
+        .withParameterExpressions();
+    } else if (node.expression.type.includes('Literal')) {
+      return super
+        .reduceComputedMemberExpression(node, { object, expression })
+        .withParameterExpressions();
+    } else {
+      return super.reduceComputedMemberExpression(node, {object, expression})
+        .addProperty( new Property('*dynamic*', { references: [
+          new PropertyReference(node, Accessibility.PROPERTYREAD)
+        ] } ) )
+        .withParameterExpressions();
+    }
   }
 
   reduceForInStatement(node, { left, right, body }) {

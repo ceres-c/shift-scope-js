@@ -35,6 +35,7 @@ export class Property {
 
   // Add child property to current property and return new object
   append(c) {
+    // TODO monadic-ize this method: return a new Property object instead of modifying `this`
     if (this.properties.has(c.name)) {
       let merged = this.properties.get(c.name).concat(c)
       this.properties.set(c.name, merged);
@@ -74,16 +75,31 @@ export class VariablesPropertiesMap {
   }
 
   // Recursively concat this object to another concatenating Property-class sub objects as well
-  concat(b) {
+  concat(b, lastProperty) {
     if (this === b) {
       return this;
     }
+
+    let newLastProperty = lastProperty;
+
     let mergeVariables = new Map([...this.variables]);
     b.variables.forEach( (v, k) => {
-      let thisVarProps = mergeVariables.get(k) || new Property(k);
-      mergeVariables.set(k, thisVarProps.concat(v));
+      if (this.variables.has(k)) {
+        let thisVarProps = this.variables.get(k);
+        let mergedVarProps = thisVarProps.concat(v);
+        mergeVariables.set(k, mergedVarProps);
+
+        // Update lastProperty reference, if needed
+        if (lastProperty === v || lastProperty === thisVarProps) {
+          newLastProperty = mergedVarProps;
+        }
+      } else {
+        mergeVariables.set(k, v);
+      }
+      // let thisVarProps = this.variables.get(k) || new Property(k);
+      // mergeVariables.set(k, thisVarProps.concat(v));
     } );
-    return new VariablesPropertiesMap({ variables: mergeVariables });
+    return [new VariablesPropertiesMap({ variables: mergeVariables }), newLastProperty];
   }
 
   getMap() {
