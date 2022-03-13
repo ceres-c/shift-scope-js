@@ -75,31 +75,27 @@ export class VariablesPropertiesMap {
   }
 
   // Recursively concat this object to another concatenating Property-class sub objects as well
-  concat(b, lastProperty) {
+  concat(b) {
+    // NOTE: This method can possibly leave a dangling lastProperty.
+    // If lastProperty points to a property (at any level) in a variable already already known to the reducer, the object
+    // will be superseeded due to how concat/append work, but lastProperty will NOT be updated.
+    // This shouldn't be an issue (TM) due to how the reducer works, but I'm still leaving this note here
+    // to hopefully help someone debugging in the future.
     if (this === b) {
       return this;
     }
-
-    let newLastProperty = lastProperty;
 
     let mergeVariables = new Map([...this.variables]);
     b.variables.forEach( (v, k) => {
       if (this.variables.has(k)) {
         let thisVarProps = this.variables.get(k);
-        let mergedVarProps = thisVarProps.concat(v);
-        mergeVariables.set(k, mergedVarProps);
-
-        // Update lastProperty reference, if needed
-        if (lastProperty === v || lastProperty === thisVarProps) {
-          newLastProperty = mergedVarProps;
-        }
+        mergeVariables.set(k, thisVarProps.concat(v));
       } else {
         mergeVariables.set(k, v);
       }
-      // let thisVarProps = this.variables.get(k) || new Property(k);
-      // mergeVariables.set(k, thisVarProps.concat(v));
+
     } );
-    return [new VariablesPropertiesMap({ variables: mergeVariables }), newLastProperty];
+    return new VariablesPropertiesMap({ variables: mergeVariables });
   }
 
   getMap() {

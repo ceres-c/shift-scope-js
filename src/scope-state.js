@@ -80,14 +80,10 @@ export default class ScopeState {
       return this;
     }
 
-    // TODO should this or that be favored as a LAST property (the most recent one)?
-    let lastProperty = this.lastProperty.name ? this.lastProperty : b.lastProperty;
-    let [newProperties, newLastProperty] = this.properties.concat(b.properties, lastProperty);
-    // TODO find a way to avoid explicitly reassigning lastProperty
 
     return new ScopeState({
       freeIdentifiers: merge(merge(new MultiMap, this.freeIdentifiers), b.freeIdentifiers),
-      properties: newProperties,
+      properties: this.properties.concat(b.properties),
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -104,7 +100,7 @@ export default class ScopeState {
       dynamic: this.dynamic || b.dynamic,
       bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
       atsForParent: this.atsForParent.concat(b.atsForParent),
-      lastProperty: newLastProperty,
+      lastProperty: this.lastProperty.name ? this.lastProperty : b.lastProperty,
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
