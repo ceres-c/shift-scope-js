@@ -16,7 +16,7 @@ a['b']['c']['d'] = 1;
 
 input_src = `
 a['b']['c']['d'] = 1;
-x.y.z.w = 1;
+delete a.b.c.d;
 `
 
 let tree = parseScript(input_src);

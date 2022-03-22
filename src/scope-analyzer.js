@@ -320,14 +320,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     );
   }
 
-  // TODO reduceComputedMember...
   reduceStaticMemberExpression(node, { object }) {
     return super
       .reduceStaticMemberExpression(node, {object})
       .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYREAD)] } ) );
   }
 
-  // TODO reduceComputedMember...
   reduceStaticMemberAssignmentTarget(node, { object }) {
     return super
       .reduceStaticMemberAssignmentTarget(node, {object})
@@ -358,11 +356,23 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (node.operator === 'delete' && node.operand.type === 'IdentifierExpression') {
       // 'delete x' is a special case.
       return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) });
-    } else if (node.operator === 'delete' && node.operand.type.includes('MemberExpression')) { // Static/Computed member expression
-      throw Error(`Unsupported delete operation on ${node.operand.type}`);
-      // TODO propagate up last property (just like bindingsForParent) to change its accessibility to PROPERTYDELETE
+    } else if (node.operator === 'delete' && node.operand.type.includes('MemberExpression')) {
+      // Static/Computed member expression
+      if (operand.lastProperty.references.length != 1) {
+        // There should (TM) be only one reference at this point, since we're done reducing one property chain
+        throw Error(`Property \`delete\` operation with ${operand.lastProperty.references.length} references`);
+      }
+      if (operand.lastProperty.references[0].accessibility === undefined) {
+        throw Error('Property `delete` lacking previous accessibility info');
+      }
+
+      // HACK: non-monadic behavior. Overwriting the accessibility keep lastProperty and the properties map in sync effortlessly
+      operand.lastProperty.references[0].accessibility = Accessibility.PROPERTYDELETE;
+
+      return operand;
+    } else {
+      return super.reduceUnaryExpression(node, { operand });
     }
-    return super.reduceUnaryExpression(node, { operand });
   }
 
   reduceUpdateExpression(node, { operand }) {
