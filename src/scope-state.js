@@ -171,16 +171,12 @@ export default class ScopeState {
     return s;
   }
 
-  // Add new top-level property to an identifier or a nested property to another property
-  addProperty(property, toIdentifier = false) {
-    // TODO change toIdentifier default to true (it makes more sense)
+  /**
+   * Add a property to either a variable or another property, updating lastProperty reference
+   */
+  addProperty(property) {
     let s = new ScopeState(this);
-    if (toIdentifier) {
-      s.properties = new IdentifiersPropertiesMap({variables: new Map([[property.name, property]])});
-      s.lastProperty = property;
-    } else {
-      s.lastProperty = s.lastProperty.append(property);
-    }
+    s.lastProperty = s.lastProperty.append(property);
     return s;
   }
 

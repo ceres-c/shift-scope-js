@@ -68,10 +68,13 @@ export class Property {
   }
 }
 
-// Class to associate identifiers to their properties in a map-like monadic structure. `variables` property is indeed a Map
+/*
+ * Class to associate identifiers to their properties in a map-like monadic structure.
+ * `identifiers` is a Map of *misuses* Property objects: they are not properties but top level identifiers.
+ */
 export class IdentifiersPropertiesMap {
-  constructor( { variables = new Map } = {} ) {
-    this.variables = variables;
+  constructor( { identifiers = new Map } = {} ) {
+    this.identifiers = identifiers;
   }
 
   // Recursively concat this object to another concatenating Property-class sub objects as well
@@ -85,20 +88,19 @@ export class IdentifiersPropertiesMap {
       return this;
     }
 
-    let mergeVariables = new Map([...this.variables]);
-    b.variables.forEach( (v, k) => {
-      if (this.variables.has(k)) {
-        let thisVarProps = this.variables.get(k);
+    let mergeVariables = new Map([...this.identifiers]);
+    b.getMap().forEach( (v, k) => {
+      if (this.identifiers.has(k)) {
+        let thisVarProps = this.identifiers.get(k);
         mergeVariables.set(k, thisVarProps.concat(v));
       } else {
         mergeVariables.set(k, v);
       }
-
     } );
-    return new IdentifiersPropertiesMap({ variables: mergeVariables });
+    return new IdentifiersPropertiesMap({ identifiers: mergeVariables });
   }
 
   getMap() {
-    return this.variables;
+    return this.identifiers;
   }
 }

@@ -16,6 +16,10 @@ input_src = `
 a(b);
 `
 
+input_src = `
+a.b.c.d = 5;
+`
+
 let tree = parseScript(input_src);
 
 // Remove strings array decoding function and strings array function itself

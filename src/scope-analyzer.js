@@ -21,7 +21,7 @@ import { Accessibility, Reference, PropertyReference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Property } from './variable';
+import { IdentifiersPropertiesMap, Property } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -269,11 +269,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceIdentifierExpression(node) {
-    debugger
-    let newProperty = new Property(node.name); // TODO remove this property and the call to addProperty below. Return some kind of new property map?
+    let p = new Property(node.name);
     return new ScopeState({
+      properties: new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ), // Create new properties map for this identifier
+      lastProperty: p,
       freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
-    }).addProperty(newProperty, true); // Adding property to an identifier
+    });;
   }
 
   reduceIfStatement(node, { test, consequent, alternate }) {
