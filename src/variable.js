@@ -68,8 +68,8 @@ export class Property {
   }
 }
 
-// Class to associate variables to their properties in a map-like monadic structure. `variables` property is indeed a Map
-export class VariablesPropertiesMap {
+// Class to associate identifiers to their properties in a map-like monadic structure. `variables` property is indeed a Map
+export class IdentifiersPropertiesMap {
   constructor( { variables = new Map } = {} ) {
     this.variables = variables;
   }
@@ -95,7 +95,7 @@ export class VariablesPropertiesMap {
       }
 
     } );
-    return new VariablesPropertiesMap({ variables: mergeVariables });
+    return new IdentifiersPropertiesMap({ variables: mergeVariables });
   }
 
   getMap() {

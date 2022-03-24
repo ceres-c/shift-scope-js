@@ -5,18 +5,15 @@ const ScopeAnalyzer = require('./dist/scope-analyzer');
 // const codegen = require('../utils/codegen');
 
 let input_src = `
-// let a = 1;
-// a.b = {};
-// a.b.c = 5;
-a['b']['c']['d'] = 1;
-// if (a == 5) {
-//   a = 1
-// }
+function hi() {
+    var _0x725ebe = { 'ImVvl': 'Hello\x20World!' };
+    console['log'](_0x725ebe['ImVvl']);
+}
+hi();
 `
 
 input_src = `
-a['b']['c']['d'] = 1;
-delete a.b.c.d;
+a(b);
 `
 
 let tree = parseScript(input_src);

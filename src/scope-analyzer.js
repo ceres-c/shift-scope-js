@@ -79,7 +79,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceAssignmentExpression(node, { binding, expression }) {
     return super.reduceAssignmentExpression(node, {
-      binding: binding.addReferences(Accessibility.WRITE),
+      binding: binding.addReferences(Accessibility.WRITE), // TODO addPropertyReference
       expression,
     });
   }
@@ -156,7 +156,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceCompoundAssignmentExpression(node, { binding, expression }) {
     return super.reduceCompoundAssignmentExpression(node, {
-      binding: binding.addReferences(Accessibility.READWRITE),
+      binding: binding.addReferences(Accessibility.READWRITE), // TODO addPropertyReference
       expression,
     });
   }
@@ -269,7 +269,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceIdentifierExpression(node) {
-    let newProperty = new Property(node.name);
+    debugger
+    let newProperty = new Property(node.name); // TODO remove this property and the call to addProperty below. Return some kind of new property map?
     return new ScopeState({
       freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
     }).addProperty(newProperty, true); // Adding property to an identifier

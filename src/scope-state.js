@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Variable, Property, VariablesPropertiesMap } from './variable';
+import { Variable, Property, IdentifiersPropertiesMap } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -41,7 +41,7 @@ export default class ScopeState {
   constructor(
     {
       freeIdentifiers = new MultiMap,
-      properties = new VariablesPropertiesMap,
+      properties = new IdentifiersPropertiesMap,
       functionScopedDeclarations = new MultiMap,
       blockScopedDeclarations = new MultiMap,
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
@@ -176,7 +176,7 @@ export default class ScopeState {
     // TODO change toIdentifier default to true (it makes more sense)
     let s = new ScopeState(this);
     if (toIdentifier) {
-      s.properties = new VariablesPropertiesMap({variables: new Map([[property.name, property]])});
+      s.properties = new IdentifiersPropertiesMap({variables: new Map([[property.name, property]])});
       s.lastProperty = property;
     } else {
       s.lastProperty = s.lastProperty.append(property);
