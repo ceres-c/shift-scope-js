@@ -97,6 +97,30 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return s;
   }
 
+  reduceComputedMemberAssignmentTarget(node, { object, expression }) {
+    if (node.expression.type === 'LiteralStringExpression') {
+      let s = super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .setProperty()
+        .addProperty( new Property(node.expression.value) ) // Add target property with no references
+        .withParameterExpressions();
+      s.atsForParent.push(node);
+      return s;
+    } else if (node.expression.type.includes('Literal')) {
+      return super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .withParameterExpressions();
+    } else {
+      let s = super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .setProperty()
+        .addProperty( new Property('*dynamic*') ) // Add target property with no references
+        .withParameterExpressions();
+      s.atsForParent.push(node);
+      return s;
+    }
+  }
+
   reduceBindingIdentifier(node) {
     if (node.name === '*default*') {
       return new ScopeState;
@@ -165,31 +189,9 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceCompoundAssignmentExpression(node, { binding, expression }) {
     return super.reduceCompoundAssignmentExpression(node, {
-      binding: binding.addReferences(Accessibility.READWRITE), // TODO addPropertyReference
+      binding: binding.addReferences(Accessibility.READWRITE),
       expression,
     });
-  }
-
-  reduceComputedMemberAssignmentTarget(node, { object, expression }) {
-    if (node.expression.type === 'LiteralStringExpression') {
-      return super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .addProperty( new Property(node.expression.value, { references: [
-          new Reference(node, Accessibility.WRITE)
-        ] } ) )
-        .withParameterExpressions();
-    } else if (node.expression.type.includes('Literal')) {
-      return super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .withParameterExpressions();
-    } else {
-      return super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .addProperty( new Property('*dynamic*', { references: [
-          new Reference(node, Accessibility.WRITE)
-        ] } ) )
-        .withParameterExpressions();
-    }
   }
 
   reduceComputedMemberExpression(node, { object, expression }) {

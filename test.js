@@ -22,6 +22,7 @@ input_src = `
 a = 5;
 a.b;
 a.b.c = 5;
+x.y['z'] = 5;
 `
 
 let tree = parseScript(input_src);

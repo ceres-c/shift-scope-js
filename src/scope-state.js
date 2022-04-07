@@ -160,9 +160,7 @@ export default class ScopeState {
     let s = new ScopeState(this);
 
     if (this.isProperty) {
-      this.bindingsForParent.forEach(binding =>
-        s.lastProperty.references.push(new Reference(binding, accessibility)),
-      );
+      // No bindingForParent: only identifies can be bound
       this.atsForParent.forEach(binding =>
         s.lastProperty.references.push(new Reference(binding, accessibility)),
       );
