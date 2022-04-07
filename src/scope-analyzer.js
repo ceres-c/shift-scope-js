@@ -17,7 +17,7 @@
 import MultiMap from 'multimap';
 import reduce, { MonoidalReducer } from 'shift-reducer';
 import ScopeState from './scope-state';
-import { Accessibility, Reference, PropertyReference } from './reference';
+import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
@@ -79,7 +79,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceAssignmentExpression(node, { binding, expression }) {
     return super.reduceAssignmentExpression(node, {
-      binding: binding.addReferences(Accessibility.WRITE), // TODO addPropertyReference
+      binding: binding.addReferences(Accessibility.WRITE),
       expression,
     });
   }
@@ -94,7 +94,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       .setProperty()
       .addProperty( new Property(node.property) ); // Add target property with no references
     s.atsForParent.push(node);
-    debugger;
     return s;
   }
 
@@ -176,7 +175,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       return super
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperty( new Property(node.expression.value, { references: [
-          new PropertyReference(node, Accessibility.PROPERTYWRITE)
+          new Reference(node, Accessibility.WRITE)
         ] } ) )
         .withParameterExpressions();
     } else if (node.expression.type.includes('Literal')) {
@@ -187,7 +186,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       return super
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperty( new Property('*dynamic*', { references: [
-          new PropertyReference(node, Accessibility.PROPERTYWRITE)
+          new Reference(node, Accessibility.WRITE)
         ] } ) )
         .withParameterExpressions();
     }
@@ -197,7 +196,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (node.expression.type === 'LiteralStringExpression') {
       return super.reduceComputedMemberExpression(node, {object, expression})
         .addProperty( new Property(node.expression.value, { references: [
-          new PropertyReference(node, Accessibility.PROPERTYREAD)
+          new Reference(node, Accessibility.READ)
         ] } ) )
         .withParameterExpressions();
     } else if (node.expression.type.includes('Literal')) {
@@ -207,7 +206,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     } else {
       return super.reduceComputedMemberExpression(node, {object, expression})
         .addProperty( new Property('*dynamic*', { references: [
-          new PropertyReference(node, Accessibility.PROPERTYREAD)
+          new Reference(node, Accessibility.READ)
         ] } ) )
         .withParameterExpressions();
     }
@@ -337,7 +336,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super
       .reduceStaticMemberExpression(node, {object})
       .setProperty()
-      .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYREAD)] } ) );
+      .addProperty( new Property(node.property, { references: [new Reference(node, Accessibility.READ)] } ) );
   }
 
   reduceSwitchStatement(node, { discriminant, cases }) {
@@ -375,7 +374,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       }
 
       // HACK: non-monadic behavior. Overwriting the accessibility keep lastProperty and the properties map in sync effortlessly
-      operand.lastProperty.references[0].accessibility = Accessibility.PROPERTYDELETE;
+      operand.lastProperty.references[0].accessibility = Accessibility.DELETE;
 
       return operand;
     } else {

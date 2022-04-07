@@ -15,33 +15,22 @@
  */
 
 export class Accessibility {
-  constructor(isRead, isWrite, isDelete, isProperty) {
+  constructor(isRead, isWrite, isDelete) {
     this.isRead = !!isRead;
     this.isWrite = !!isWrite;
     this.isReadWrite = !!(isRead && isWrite);
     this.isDelete = !!isDelete;
-    this.isProperty = !! isProperty;
   }
 }
 
-Accessibility.READ = new Accessibility(true, false, false, false);
-Accessibility.WRITE = new Accessibility(false, true, false, false);
-Accessibility.READWRITE = new Accessibility(true, true, false, false);
-Accessibility.DELETE = new Accessibility(false, false, true, false);
-Accessibility.PROPERTYREAD = new Accessibility(true, false, false, true);
-Accessibility.PROPERTYWRITE = new Accessibility(false, true, false, true);
-Accessibility.PROPERTYREADWRITE = new Accessibility(true, true, false, true);
-Accessibility.PROPERTYDELETE = new Accessibility(false, false, true, true);
+Accessibility.READ = new Accessibility(true, false, false);
+Accessibility.WRITE = new Accessibility(false, true, false);
+Accessibility.READWRITE = new Accessibility(true, true, false);
+Accessibility.DELETE = new Accessibility(false, false, true);
 
 export class Reference {
   constructor(node, accessibility) {
     this.node = node;
     this.accessibility = accessibility;
-  }
-}
-
-export class PropertyReference extends Reference {
-  constructor(node, accessibility) {
-    super(node, accessibility);
   }
 }

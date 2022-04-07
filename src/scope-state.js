@@ -16,7 +16,7 @@
 
 import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
-import { Reference, PropertyReference, Accessibility } from './reference';
+import { Reference, Accessibility } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
 import { Variable, Property, IdentifiersPropertiesMap } from './variable';
 
@@ -157,16 +157,14 @@ export default class ScopeState {
    * Observe a reference to a variable
    */
   addReferences(accessibility, keepBindingsForParent = false) {
-    debugger;
     let s = new ScopeState(this);
 
     if (this.isProperty) {
-      let a = new Accessibility(accessibility.isRead, accessibility.isWrite, accessibility.isDelete, true); // Convert to a property reference
       this.bindingsForParent.forEach(binding =>
-        s.lastProperty.references.push(new PropertyReference(binding, a)),
+        s.lastProperty.references.push(new Reference(binding, accessibility)),
       );
       this.atsForParent.forEach(binding =>
-        s.lastProperty.references.push(new PropertyReference(binding, a)),
+        s.lastProperty.references.push(new Reference(binding, accessibility)),
       );
     } else {
       let freeMap = new MultiMap;
