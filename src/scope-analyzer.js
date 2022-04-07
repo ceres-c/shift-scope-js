@@ -88,6 +88,16 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return new ScopeState({ atsForParent: [node] });
   }
 
+  reduceStaticMemberAssignmentTarget(node, { object }) {
+    let s = super
+      .reduceStaticMemberAssignmentTarget(node, { object })
+      .setProperty()
+      .addProperty( new Property(node.property) ); // Add target property with no references
+    s.atsForParent.push(node);
+    debugger;
+    return s;
+  }
+
   reduceBindingIdentifier(node) {
     if (node.name === '*default*') {
       return new ScopeState;
@@ -271,10 +281,10 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceIdentifierExpression(node) {
     let p = new Property(node.name);
     return new ScopeState({
-      properties: new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ), // Create new properties map for this identifier
+      properties: new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ),
       lastProperty: p,
       freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
-    });;
+    });
   }
 
   reduceIfStatement(node, { test, consequent, alternate }) {
@@ -323,15 +333,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceStaticMemberExpression(node, { object }) {
+    // TODO computedMemberExpression
     return super
       .reduceStaticMemberExpression(node, {object})
+      .setProperty()
       .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYREAD)] } ) );
-  }
-
-  reduceStaticMemberAssignmentTarget(node, { object }) {
-    return super
-      .reduceStaticMemberAssignmentTarget(node, {object})
-      .addProperty( new Property(node.property, { references: [new PropertyReference(node, Accessibility.PROPERTYWRITE)] } ) );
   }
 
   reduceSwitchStatement(node, { discriminant, cases }) {

@@ -16,7 +16,7 @@
 
 import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
-import { Reference } from './reference';
+import { Reference, PropertyReference, Accessibility } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
 import { Variable, Property, IdentifiersPropertiesMap } from './variable';
 
@@ -50,6 +50,7 @@ export default class ScopeState {
       bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       lastProperty = new Property, // Will be assigned to the most recent Property object to resolve nested objects like a.b.c.d
+      isProperty = false, // true if current scope is a property, false if it's either a variable or anything else
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
     } = {},
@@ -64,6 +65,7 @@ export default class ScopeState {
     this.bindingsForParent = bindingsForParent;
     this.atsForParent = atsForParent;
     this.lastProperty = lastProperty;
+    this.isProperty = isProperty;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
   }
@@ -101,6 +103,7 @@ export default class ScopeState {
       bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
       atsForParent: this.atsForParent.concat(b.atsForParent),
       lastProperty: this.lastProperty.name ? this.lastProperty : b.lastProperty,
+      isProperty: this.isProperty || b.isProperty,
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -154,16 +157,29 @@ export default class ScopeState {
    * Observe a reference to a variable
    */
   addReferences(accessibility, keepBindingsForParent = false) {
-    let freeMap = new MultiMap;
-    merge(freeMap, this.freeIdentifiers);
-    this.bindingsForParent.forEach(binding =>
-      freeMap.set(binding.name, new Reference(binding, accessibility)),
-    );
-    this.atsForParent.forEach(binding =>
-      freeMap.set(binding.name, new Reference(binding, accessibility)),
-    );
+    debugger;
     let s = new ScopeState(this);
-    s.freeIdentifiers = freeMap;
+
+    if (this.isProperty) {
+      let a = new Accessibility(accessibility.isRead, accessibility.isWrite, accessibility.isDelete, true); // Convert to a property reference
+      this.bindingsForParent.forEach(binding =>
+        s.lastProperty.references.push(new PropertyReference(binding, a)),
+      );
+      this.atsForParent.forEach(binding =>
+        s.lastProperty.references.push(new PropertyReference(binding, a)),
+      );
+    } else {
+      let freeMap = new MultiMap;
+      merge(freeMap, this.freeIdentifiers);
+      this.bindingsForParent.forEach(binding =>
+        freeMap.set(binding.name, new Reference(binding, accessibility)),
+      );
+      this.atsForParent.forEach(binding =>
+        freeMap.set(binding.name, new Reference(binding, accessibility)),
+      );
+      s.freeIdentifiers = freeMap;
+    }
+
     if (!keepBindingsForParent) {
       s.bindingsForParent = [];
       s.atsForParent = [];
@@ -177,6 +193,12 @@ export default class ScopeState {
   addProperty(property) {
     let s = new ScopeState(this);
     s.lastProperty = s.lastProperty.append(property);
+    return s;
+  }
+
+  setProperty() {
+    let s = new ScopeState(this);
+    s.isProperty = true;
     return s;
   }
 

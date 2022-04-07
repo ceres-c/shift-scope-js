@@ -13,11 +13,15 @@ hi();
 `
 
 input_src = `
-a(b);
+a.kek
+call().lel
 `
 
 input_src = `
-a.b.c.d = 5;
+// x.y = 5;
+a = 5;
+a.b;
+a.b.c = 5;
 `
 
 let tree = parseScript(input_src);
