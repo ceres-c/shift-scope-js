@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { VariableOldOutputObject, PropertyOld, IdentifiersPropertiesMap } from './variable';
+import { VariableOldOutputObject } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -27,11 +27,10 @@ function merge(multiMap, otherMultiMap) {
   return multiMap;
 }
 
-function resolveDeclarations(freeIdentifiers, decls, variables, props) {
+function resolveDeclarations(freeIdentifiers, decls, variables) {
   decls.forEachEntry((declarations, name) => {
     let references = freeIdentifiers.get(name) || [];
-    let properties = props.get(name) || new PropertyOld(name);
-    variables = variables.concat(new VariableOldOutputObject(name, references, declarations, properties));
+    variables = variables.concat(new VariableOldOutputObject(name, references, declarations));
     freeIdentifiers.delete(name);
   });
   return variables;
@@ -41,7 +40,6 @@ export default class ScopeState {
   constructor(
     {
       freeIdentifiers = new MultiMap,
-      properties = new IdentifiersPropertiesMap,
       functionScopedDeclarations = new MultiMap,
       blockScopedDeclarations = new MultiMap,
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
@@ -49,14 +47,11 @@ export default class ScopeState {
       dynamic = false,
       bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
-      lastProperty = new PropertyOld, // Will be assigned to the most recent Property object to resolve nested objects like a.b.c.d
-      isProperty = false, // true if current scope is a property, false if it's either a variable or anything else
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
-    this.properties = properties;
     this.functionScopedDeclarations = functionScopedDeclarations;
     this.blockScopedDeclarations = blockScopedDeclarations;
     this.functionDeclarations = functionDeclarations;
@@ -64,8 +59,6 @@ export default class ScopeState {
     this.dynamic = dynamic;
     this.bindingsForParent = bindingsForParent;
     this.atsForParent = atsForParent;
-    this.lastProperty = lastProperty;
-    this.isProperty = isProperty;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
   }
@@ -81,11 +74,8 @@ export default class ScopeState {
     if (this === b) {
       return this;
     }
-
-
     return new ScopeState({
       freeIdentifiers: merge(merge(new MultiMap, this.freeIdentifiers), b.freeIdentifiers),
-      properties: this.properties.concat(b.properties),
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -102,8 +92,6 @@ export default class ScopeState {
       dynamic: this.dynamic || b.dynamic,
       bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
       atsForParent: this.atsForParent.concat(b.atsForParent),
-      lastProperty: this.lastProperty.name ? this.lastProperty : b.lastProperty,
-      isProperty: this.isProperty || b.isProperty,
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -157,44 +145,20 @@ export default class ScopeState {
    * Observe a reference to a variable
    */
   addReferences(accessibility, keepBindingsForParent = false) {
+    let freeMap = new MultiMap;
+    merge(freeMap, this.freeIdentifiers);
+    this.bindingsForParent.forEach(binding =>
+      freeMap.set(binding.name, new Reference(binding, accessibility)),
+    );
+    this.atsForParent.forEach(binding =>
+      freeMap.set(binding.name, new Reference(binding, accessibility)),
+    );
     let s = new ScopeState(this);
-
-    if (this.isProperty) {
-      // No bindingForParent: only identifies can be bound
-      this.atsForParent.forEach(binding =>
-        s.lastProperty.references.push(new Reference(binding, accessibility)),
-      );
-    } else {
-      let freeMap = new MultiMap;
-      merge(freeMap, this.freeIdentifiers);
-      this.bindingsForParent.forEach(binding =>
-        freeMap.set(binding.name, new Reference(binding, accessibility)),
-      );
-      this.atsForParent.forEach(binding =>
-        freeMap.set(binding.name, new Reference(binding, accessibility)),
-      );
-      s.freeIdentifiers = freeMap;
-    }
-
+    s.freeIdentifiers = freeMap;
     if (!keepBindingsForParent) {
       s.bindingsForParent = [];
       s.atsForParent = [];
     }
-    return s;
-  }
-
-  /**
-   * Add a property to either a variable or another property, updating lastProperty reference
-   */
-  addProperty(property) {
-    let s = new ScopeState(this);
-    s.lastProperty = s.lastProperty.append(property);
-    return s;
-  }
-
-  setProperty() {
-    let s = new ScopeState(this);
-    s.isProperty = true;
     return s;
   }
 
@@ -243,7 +207,6 @@ export default class ScopeState {
     let freeIdentifiers = merge(new MultiMap, this.freeIdentifiers);
     let pvsfd = merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations);
     let children = this.children;
-    let properties = this.properties.getMap();
 
     let hasSimpleCatchBinding = scopeType.name === 'Catch' && astNode.binding.type === 'BindingIdentifier';
     this.blockScopedDeclarations.forEachEntry((v, k) => {
@@ -294,7 +257,7 @@ export default class ScopeState {
         // resolve references to only block-scoped free declarations
         merge(declarations, this.blockScopedDeclarations);
         merge(declarations, this.functionDeclarations);
-        variables = resolveDeclarations(freeIdentifiers, declarations, variables, properties);
+        variables = resolveDeclarations(freeIdentifiers, declarations, variables);
         merge(functionScoped, this.functionScopedDeclarations);
         break;
       case ScopeType.PARAMETERS:
@@ -310,7 +273,7 @@ export default class ScopeState {
           children = [
             new Scope({
               children,
-              variables: resolveDeclarations(freeIdentifiers, this.blockScopedDeclarations, [], properties),
+              variables: resolveDeclarations(freeIdentifiers, this.blockScopedDeclarations, []),
               through: merge(new MultiMap, freeIdentifiers),
               type: ScopeType.SCRIPT,
               isDynamic: this.dynamic,
@@ -339,7 +302,7 @@ export default class ScopeState {
         }
         pvsfd = new MultiMap;
 
-        variables = resolveDeclarations(freeIdentifiers, declarations, variables, properties);
+        variables = resolveDeclarations(freeIdentifiers, declarations, variables);
 
         // no declarations in a module are global
         if (scopeType === ScopeType.MODULE) {
@@ -362,7 +325,7 @@ export default class ScopeState {
 
     const scope =
       scopeType === ScopeType.SCRIPT || scopeType === ScopeType.MODULE
-        ? new GlobalScope({ children, variables, through: freeIdentifiers, astNode, properties })
+        ? new GlobalScope({ children, variables, through: freeIdentifiers, astNode })
         : new Scope({
           children,
           variables,
@@ -379,8 +342,6 @@ export default class ScopeState {
       bindingsForParent: this.bindingsForParent,
       potentiallyVarScopedFunctionDeclarations: pvsfd,
       hasParameterExpressions: this.hasParameterExpressions,
-      properties: this.properties, // Object properties are retained in the parent scope as well
-      lastProperty: this.lastProperty,
     });
   }
 }

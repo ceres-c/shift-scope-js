@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { VariableOldOutputObject, PropertyOld } from './variable';
+import { VariableOldOutputObject } from './variable';
 
 export class ScopeType {
   constructor(name) {
@@ -63,11 +63,10 @@ export class Scope {
 }
 
 export class GlobalScope extends Scope {
-  constructor({ children, variables, through, astNode, properties }) {
+  constructor({ children, variables, through, astNode }) {
     super({ children, variables, through, type: ScopeType.GLOBAL, isDynamic: true, astNode });
     through.forEachEntry((v, k) => {
-      let varProperties = properties.get(k) || new PropertyOld(k);
-      this.variables.set(k, new VariableOldOutputObject(k, v, [], varProperties));
+      this.variables.set(k, new VariableOldOutputObject(k, v, []));
     });
     this.variableList = [];
     for (let x of this.variables.values()) {

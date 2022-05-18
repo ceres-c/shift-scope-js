@@ -41,16 +41,79 @@ export class Variable {
       throw new Error(`Concatenating variable named ${b.name} to variable named ${this.name}!`);
     }
 
+    let newProperties = new Map(this.properties);
+    b.properties.forEach((v, k) => {
+      let current = newProperties.get(k) || new Property({name: k});
+      newProperties.set(current.concat(v));
+    });
+
     return new Variable(
       {
         name: this.name,
         references: this.references.concat(b.references),
         declarations: this.declarations.concat(b.declarations),
-        properties: new Map([...this.properties, ...b.properties]), // TODO: Replace this with a tree-like monadic type
+        properties: newProperties,
       }
     )
   }
 }
+
+export class Property {
+  constructor(
+    {
+      name = '',
+      references = [],
+      properties = new Map,
+    } = {}
+  ) {
+    this.name = name;
+    this.references = references;
+    this.properties = properties;
+  }
+
+  /*
+   * Monoidal append: merges the two properties together
+   * Dumb recursive implementation
+   */
+  concat(b) {
+    if (this === b) {
+      return this;
+    }
+    if (this.name !== b.name) {
+      throw new Error(`Concatenating property named ${b.name} to property named ${this.name}!`);
+    }
+
+    let newProperties = new Map(this.properties);
+    b.properties.forEach((v, k) => {
+      let current = newProperties.get(k) || new Property({name: k});
+      newProperties.set(current.concat(v));
+    });
+    return new Property({
+      name: this.name,
+      references: this.references.concat(b.references),
+      properties: newProperties,
+    });
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class VariableOldOutputObject {
   constructor(name, references, declarations, variableProperties = new PropertyOld) {

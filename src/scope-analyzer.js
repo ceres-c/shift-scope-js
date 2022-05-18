@@ -21,7 +21,6 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { IdentifiersPropertiesMap, PropertyOld } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -78,80 +77,14 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentExpression(node, { binding, expression }) {
-    let s = super.reduceAssignmentExpression(node, {
+    return super.reduceAssignmentExpression(node, {
       binding: binding.addReferences(Accessibility.WRITE),
       expression,
     });
-    debugger;
-    /* NO:
-       Bisogna usare un attributo 'hasDataProperty' della expression che risale a cascata dal fondo se un qualunque expression ha una dataproperty. le dataproperty devono risalire a livello più alto (dataPropertyForParent?). Nel caso di array a DX bisogna mantenere l'ordine delle dataProperty
-
-       Poi iterare su ogni atsForParent (TODO: controllare che con le arrayTargetIdentifier i binding risalgano) e associargli la corrispondente dataproperties se ci sono dataProperty
-    */
-
-
-    // TODO use this part
-    // if (expression.hasDataProperty) { // Tutta questa cosa va in addReferences. Bisogna anche trovare un modo per passare le lastPorperty come atsForParent
-    //   for (let i = 0; i < s.atsForParent.length; i++) {
-    //     if (expression.dpForParent[i] !== undefined) {
-    //       // TODO: create properties for every atsForParent
-    //     }
-    //   }
-    // }
-
-    // TODO below code is too naive, a check for ObjectExpr can't be hardcoded due to arrayExpr assignments
-    // if (node.expression.type === 'ObjectExpression') {
-    //   let p = new Property(node.name);
-    //   let sO = new ScopeState(s)
-    //   sO.properties = new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ),
-    //   sO.lastProperty = p;
-
-    //   node.expression.properties.forEach(p => {
-    //     s.addProperty(
-    //       new Property( p.name.value, {references: [
-    //         new Reference(p, Accessibility.WRITE)
-    //       ]})
-    //     ) // Add target property with no references
-    //   });
-    // }
-    return s;
   }
 
   reduceAssignmentTargetIdentifier(node) {
     return new ScopeState({ atsForParent: [node] });
-  }
-
-  reduceStaticMemberAssignmentTarget(node, { object }) {
-    let s = super
-      .reduceStaticMemberAssignmentTarget(node, { object })
-      .setProperty()
-      .addProperty( new PropertyOld(node.property) ); // Add target property with no references
-    s.atsForParent.push(node);
-    return s;
-  }
-
-  reduceComputedMemberAssignmentTarget(node, { object, expression }) {
-    if (node.expression.type === 'LiteralStringExpression') {
-      let s = super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .setProperty()
-        .addProperty( new PropertyOld(node.expression.value) ) // Add target property with no references
-        .withParameterExpressions();
-      s.atsForParent.push(node);
-      return s;
-    } else if (node.expression.type.includes('Literal')) {
-      return super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .withParameterExpressions();
-    } else {
-      let s = super
-        .reduceComputedMemberAssignmentTarget(node, { object, expression })
-        .setProperty()
-        .addProperty( new PropertyOld('*dynamic*') ) // Add target property with no references
-        .withParameterExpressions();
-      s.atsForParent.push(node);
-      return s;
-    }
   }
 
   reduceBindingIdentifier(node) {
@@ -228,23 +161,9 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceComputedMemberExpression(node, { object, expression }) {
-    if (node.expression.type === 'LiteralStringExpression') {
-      return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperty( new PropertyOld(node.expression.value, { references: [
-          new Reference(node, Accessibility.READ)
-        ] } ) )
-        .withParameterExpressions();
-    } else if (node.expression.type.includes('Literal')) {
-      return super
-        .reduceComputedMemberExpression(node, { object, expression })
-        .withParameterExpressions();
-    } else {
-      return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperty( new PropertyOld('*dynamic*', { references: [
-          new Reference(node, Accessibility.READ)
-        ] } ) )
-        .withParameterExpressions();
-    }
+    return super
+      .reduceComputedMemberExpression(node, { object, expression })
+      .withParameterExpressions();
   }
 
   reduceForInStatement(node, { left, right, body }) {
@@ -313,10 +232,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceIdentifierExpression(node) {
-    let p = new PropertyOld(node.name);
     return new ScopeState({
-      properties: new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ),
-      lastProperty: p,
       freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
     });
   }
@@ -366,14 +282,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     );
   }
 
-  reduceStaticMemberExpression(node, { object }) {
-    // TODO computedMemberExpression
-    return super
-      .reduceStaticMemberExpression(node, {object})
-      .setProperty()
-      .addProperty( new PropertyOld(node.property, { references: [new Reference(node, Accessibility.READ)] } ) );
-  }
-
   reduceSwitchStatement(node, { discriminant, cases }) {
     return this
       .fold(cases)
@@ -398,24 +306,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (node.operator === 'delete' && node.operand.type === 'IdentifierExpression') {
       // 'delete x' is a special case.
       return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) });
-    } else if (node.operator === 'delete' && node.operand.type.includes('MemberExpression')) {
-      // TODO use new properties access mode
-      // Static/Computed member expression
-      if (operand.lastProperty.references.length != 1) {
-        // There should (TM) be only one reference at this point, since we're done reducing one property chain
-        throw Error(`Property \`delete\` operation with ${operand.lastProperty.references.length} references`);
-      }
-      if (operand.lastProperty.references[0].accessibility === undefined) {
-        throw Error('Property `delete` lacking previous accessibility info');
-      }
-
-      // HACK: non-monadic behavior. Overwriting the accessibility keep lastProperty and the properties map in sync effortlessly
-      operand.lastProperty.references[0].accessibility = Accessibility.DELETE;
-
-      return operand;
-    } else {
-      return super.reduceUnaryExpression(node, { operand });
     }
+    return super.reduceUnaryExpression(node, { operand });
   }
 
   reduceUpdateExpression(node, { operand }) {
