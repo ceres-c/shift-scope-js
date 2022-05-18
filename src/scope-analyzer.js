@@ -78,10 +78,43 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentExpression(node, { binding, expression }) {
-    return super.reduceAssignmentExpression(node, {
+    let s = super.reduceAssignmentExpression(node, {
       binding: binding.addReferences(Accessibility.WRITE),
       expression,
     });
+    debugger;
+    /* NO:
+       Bisogna usare un attributo 'hasDataProperty' della expression che risale a cascata dal fondo se un qualunque expression ha una dataproperty. le dataproperty devono risalire a livello più alto (dataPropertyForParent?). Nel caso di array a DX bisogna mantenere l'ordine delle dataProperty
+
+       Poi iterare su ogni atsForParent (TODO: controllare che con le arrayTargetIdentifier i binding risalgano) e associargli la corrispondente dataproperties se ci sono dataProperty
+    */
+
+
+    // TODO use this part
+    // if (expression.hasDataProperty) { // Tutta questa cosa va in addReferences. Bisogna anche trovare un modo per passare le lastPorperty come atsForParent
+    //   for (let i = 0; i < s.atsForParent.length; i++) {
+    //     if (expression.dpForParent[i] !== undefined) {
+    //       // TODO: create properties for every atsForParent
+    //     }
+    //   }
+    // }
+
+    // TODO below code is too naive, a check for ObjectExpr can't be hardcoded due to arrayExpr assignments
+    // if (node.expression.type === 'ObjectExpression') {
+    //   let p = new Property(node.name);
+    //   let sO = new ScopeState(s)
+    //   sO.properties = new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ),
+    //   sO.lastProperty = p;
+
+    //   node.expression.properties.forEach(p => {
+    //     s.addProperty(
+    //       new Property( p.name.value, {references: [
+    //         new Reference(p, Accessibility.WRITE)
+    //       ]})
+    //     ) // Add target property with no references
+    //   });
+    // }
+    return s;
   }
 
   reduceAssignmentTargetIdentifier(node) {
@@ -366,6 +399,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       // 'delete x' is a special case.
       return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) });
     } else if (node.operator === 'delete' && node.operand.type.includes('MemberExpression')) {
+      // TODO use new properties access mode
       // Static/Computed member expression
       if (operand.lastProperty.references.length != 1) {
         // There should (TM) be only one reference at this point, since we're done reducing one property chain

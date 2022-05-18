@@ -16,7 +16,7 @@
 
 import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
-import { Reference, Accessibility } from './reference';
+import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
 import { Variable, Property, IdentifiersPropertiesMap } from './variable';
 
@@ -379,6 +379,8 @@ export default class ScopeState {
       bindingsForParent: this.bindingsForParent,
       potentiallyVarScopedFunctionDeclarations: pvsfd,
       hasParameterExpressions: this.hasParameterExpressions,
+      properties: this.properties, // Object properties are retained in the parent scope as well
+      lastProperty: this.lastProperty,
     });
   }
 }

@@ -2,7 +2,7 @@ const { reduce } = require('shift-reducer');
 const { parseScript } = require('shift-parser');
 
 const ScopeAnalyzer = require('./dist/scope-analyzer');
-// const codegen = require('../utils/codegen');
+// const ScopeAnalyzer = require('shift-scope');
 
 let input_src = `
 function hi() {
@@ -18,15 +18,13 @@ call().lel
 `
 
 input_src = `
-// x.y = 5;
-a = 5;
-a.b;
-a.b.c = 5;
-x.y['z'] = 5;
+let a = {};
+[a, b.c] = [{ testKey: 'assignedValue', testKeyA: 'othervalue' }];
 `
 
 let tree = parseScript(input_src);
 
 // Remove strings array decoding function and strings array function itself
 let globalScope = ScopeAnalyzer.default.analyze(tree);
+// let globalScope = ScopeAnalyzer.default(tree);
 debugger;
