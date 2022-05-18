@@ -21,7 +21,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { IdentifiersPropertiesMap, Property } from './variable';
+import { IdentifiersPropertiesMap, PropertyOld } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -125,7 +125,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = super
       .reduceStaticMemberAssignmentTarget(node, { object })
       .setProperty()
-      .addProperty( new Property(node.property) ); // Add target property with no references
+      .addProperty( new PropertyOld(node.property) ); // Add target property with no references
     s.atsForParent.push(node);
     return s;
   }
@@ -135,7 +135,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       let s = super
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .setProperty()
-        .addProperty( new Property(node.expression.value) ) // Add target property with no references
+        .addProperty( new PropertyOld(node.expression.value) ) // Add target property with no references
         .withParameterExpressions();
       s.atsForParent.push(node);
       return s;
@@ -147,7 +147,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       let s = super
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .setProperty()
-        .addProperty( new Property('*dynamic*') ) // Add target property with no references
+        .addProperty( new PropertyOld('*dynamic*') ) // Add target property with no references
         .withParameterExpressions();
       s.atsForParent.push(node);
       return s;
@@ -230,7 +230,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceComputedMemberExpression(node, { object, expression }) {
     if (node.expression.type === 'LiteralStringExpression') {
       return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperty( new Property(node.expression.value, { references: [
+        .addProperty( new PropertyOld(node.expression.value, { references: [
           new Reference(node, Accessibility.READ)
         ] } ) )
         .withParameterExpressions();
@@ -240,7 +240,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .withParameterExpressions();
     } else {
       return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperty( new Property('*dynamic*', { references: [
+        .addProperty( new PropertyOld('*dynamic*', { references: [
           new Reference(node, Accessibility.READ)
         ] } ) )
         .withParameterExpressions();
@@ -313,7 +313,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceIdentifierExpression(node) {
-    let p = new Property(node.name);
+    let p = new PropertyOld(node.name);
     return new ScopeState({
       properties: new IdentifiersPropertiesMap( { identifiers: new Map([[node.name, p]]) } ),
       lastProperty: p,
@@ -371,7 +371,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super
       .reduceStaticMemberExpression(node, {object})
       .setProperty()
-      .addProperty( new Property(node.property, { references: [new Reference(node, Accessibility.READ)] } ) );
+      .addProperty( new PropertyOld(node.property, { references: [new Reference(node, Accessibility.READ)] } ) );
   }
 
   reduceSwitchStatement(node, { discriminant, cases }) {

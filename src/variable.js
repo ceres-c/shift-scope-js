@@ -14,8 +14,46 @@
  * limitations under the License.
  */
 
+// Monadic class
 export class Variable {
-  constructor(name, references, declarations, variableProperties = new Property) {
+  constructor(
+    {
+      name = '',
+      references = [],
+      declarations = [],
+      properties = new Map,
+    } = {}
+  ) {
+    this.name = name;
+    this.references = references;
+    this.declarations = declarations;
+    this.properties = properties;
+  }
+
+  /*
+   * Monoidal append: merges the two variables together
+   */
+  concat(b) {
+    if (this === b) {
+      return this;
+    }
+    if (this.name !== b.name) {
+      throw new Error(`Concatenating variable named ${b.name} to variable named ${this.name}!`);
+    }
+
+    return new Variable(
+      {
+        name: this.name,
+        references: this.references.concat(b.references),
+        declarations: this.declarations.concat(b.declarations),
+        properties: new Map([...this.properties, ...b.properties]), // TODO: Replace this with a tree-like monadic type
+      }
+    )
+  }
+}
+
+export class VariableOldOutputObject {
+  constructor(name, references, declarations, variableProperties = new PropertyOld) {
     this.name = name;
     this.references = references;
     this.declarations = declarations;
@@ -26,7 +64,7 @@ export class Variable {
 }
 
 // Monadic class
-export class Property {
+export class PropertyOld {
   constructor( name, { references = [], properties = new Map } = {} ) {
     this.name = name;
     this.references = references;
@@ -54,11 +92,11 @@ export class Property {
 
     let mergeProperties = new Map([...this.properties]);
     b.properties.forEach( (v, k) => {
-      let thisProps = mergeProperties.get(k) || new Property(k);
+      let thisProps = mergeProperties.get(k) || new PropertyOld(k);
       mergeProperties.set(k, thisProps.concat(v));
     } );
 
-    return new Property (
+    return new PropertyOld (
       this.name,
       {
         references: [...this.references, ...b.references],

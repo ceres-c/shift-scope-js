@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Variable, Property, IdentifiersPropertiesMap } from './variable';
+import { VariableOldOutputObject, PropertyOld, IdentifiersPropertiesMap } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -30,8 +30,8 @@ function merge(multiMap, otherMultiMap) {
 function resolveDeclarations(freeIdentifiers, decls, variables, props) {
   decls.forEachEntry((declarations, name) => {
     let references = freeIdentifiers.get(name) || [];
-    let properties = props.get(name) || new Property(name);
-    variables = variables.concat(new Variable(name, references, declarations, properties));
+    let properties = props.get(name) || new PropertyOld(name);
+    variables = variables.concat(new VariableOldOutputObject(name, references, declarations, properties));
     freeIdentifiers.delete(name);
   });
   return variables;
@@ -49,7 +49,7 @@ export default class ScopeState {
       dynamic = false,
       bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
-      lastProperty = new Property, // Will be assigned to the most recent Property object to resolve nested objects like a.b.c.d
+      lastProperty = new PropertyOld, // Will be assigned to the most recent Property object to resolve nested objects like a.b.c.d
       isProperty = false, // true if current scope is a property, false if it's either a variable or anything else
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
