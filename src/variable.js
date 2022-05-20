@@ -58,6 +58,7 @@ export class Variable {
   }
 }
 
+// Monadic class
 export class Property {
   constructor(
     {
@@ -106,25 +107,7 @@ export class Property {
 
 
 
-
-
-
-
-
-
-
-
-
-export class VariableOldOutputObject {
-  constructor(name, references, declarations, variableProperties = new PropertyOld) {
-    this.name = name;
-    this.references = references;
-    this.declarations = declarations;
-
-    this.properties = new Map;
-    variableProperties.properties.forEach( (v, k) => this.properties.set(k, v) );
-  }
-}
+// TODO Remove all code below
 
 // Monadic class
 export class PropertyOld {

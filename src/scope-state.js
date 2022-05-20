@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Variable, VariableOldOutputObject } from './variable';
+import { Variable } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -29,10 +29,14 @@ function merge(multiMap, otherMultiMap) {
 
 function resolveDeclarations(freeIdentifiers, decls, variables) {
   decls.forEachEntry((declarations, name) => {
-    let current = freeIdentifiers.get(name) || new Variable({name: name}); // TODO switch to explicit check to avoid heavy object creation
-    let references = current.references;
-    variables = variables.concat(new VariableOldOutputObject(name, references, declarations));
-    freeIdentifiers.delete(name);
+    if (freeIdentifiers.has(name)) {
+      let current = new Variable(freeIdentifiers.get(name));
+      current.declarations = declarations;
+      variables = variables.concat(current);
+      freeIdentifiers.delete(name);
+    } else {
+      variables = variables.concat(new Variable({name: name, declarations: declarations}));
+    }
   });
   return variables;
 }
