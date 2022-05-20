@@ -69,6 +69,7 @@ suite('ScopeLookup', () => {
     let varMap = new MultiMap([[xNode1, xVar1], [xNode2, xVar2], [xNode3, xVar2]]);
 
     let globals = new Map([[xVar1, false], [xVar2, false]]);
+    // debugger
 
     checkLookup(scopeLookup, varMap, globals);
   });

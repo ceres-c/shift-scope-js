@@ -37,7 +37,7 @@ function checkScope(scope, scopeNode, scopeType, isDynamic, children, through, v
 
   assert.equal([...scope.through.keys()].length, through.length);
   through.forEach(name => {
-    let references = scope.through.get(name);
+    let references = scope.through.get(name).references;
     assert(references != null);
     assert(references.some(reference => reference.node.name === name));
   });

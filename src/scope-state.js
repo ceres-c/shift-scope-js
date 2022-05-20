@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { VariableOldOutputObject } from './variable';
+import { Variable, VariableOldOutputObject } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -29,7 +29,8 @@ function merge(multiMap, otherMultiMap) {
 
 function resolveDeclarations(freeIdentifiers, decls, variables) {
   decls.forEachEntry((declarations, name) => {
-    let references = freeIdentifiers.get(name) || [];
+    let current = freeIdentifiers.get(name) || new Variable({name: name}); // TODO switch to explicit check to avoid heavy object creation
+    let references = current.references;
     variables = variables.concat(new VariableOldOutputObject(name, references, declarations));
     freeIdentifiers.delete(name);
   });
@@ -39,7 +40,7 @@ function resolveDeclarations(freeIdentifiers, decls, variables) {
 export default class ScopeState {
   constructor(
     {
-      freeIdentifiers = new MultiMap,
+      freeIdentifiers = new Map,
       functionScopedDeclarations = new MultiMap,
       blockScopedDeclarations = new MultiMap,
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
@@ -68,14 +69,49 @@ export default class ScopeState {
   }
 
   /*
+   * Get either a variable or a property given the full path; undefined if not found.
+   * e.g. `foo.bar.baz` returns property baz of property bar of variable foo
+   *      `foo` returns variable foo
+   */
+  getNodeFromPath(p) {
+    if (p === '' || p === '.') {
+      throw new Error('Invalid empty path');
+    }
+
+    let names = p.split('.');
+    let identifier; // Can be either a variable or a property
+    let identifiers = this.freeIdentifiers;
+
+    for(identifier of names) {
+      identifier = identifiers.get(identifier);
+      if (identifier === undefined) {
+        return undefined;
+      }
+      identifiers = identifier.properties;
+    }
+    return identifier;
+  }
+
+  /*
    * Monoidal append: merges the two states together
    */
   concat(b) {
+    // debugger; // TODO removefreeMap
     if (this === b) {
       return this;
     }
+
+    let freeMap = new Map(this.freeIdentifiers)
+    b.freeIdentifiers.forEach((v, k) => {
+      if (freeMap.has(k)) {
+        freeMap.set(k, freeMap.get(k).concat(v));
+      } else {
+        freeMap.set(k, v);
+      }
+    });
+
     return new ScopeState({
-      freeIdentifiers: merge(merge(new MultiMap, this.freeIdentifiers), b.freeIdentifiers),
+      freeIdentifiers: freeMap,
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -145,14 +181,21 @@ export default class ScopeState {
    * Observe a reference to a variable
    */
   addReferences(accessibility, keepBindingsForParent = false) {
-    let freeMap = new MultiMap;
-    merge(freeMap, this.freeIdentifiers);
-    this.bindingsForParent.forEach(binding =>
-      freeMap.set(binding.name, new Reference(binding, accessibility)),
-    );
-    this.atsForParent.forEach(binding =>
-      freeMap.set(binding.name, new Reference(binding, accessibility)),
-    );
+    let freeMap = new Map(this.freeIdentifiers)
+    this.bindingsForParent.forEach(binding => {
+      if (freeMap.has(binding.name)) {
+        freeMap.get(binding.name).references.push(new Reference(binding, accessibility));
+      } else {
+        freeMap.set(binding.name, new Variable({name: binding.name, references: [new Reference(binding, accessibility)]}));
+      }
+    });
+    this.atsForParent.forEach(binding => {
+      if (freeMap.has(binding.name)) {
+        freeMap.get(binding.name).references.push(new Reference(binding, accessibility));
+      } else {
+        freeMap.set(binding.name, new Variable({name: binding.name, references: [new Reference(binding, accessibility)]}));
+      }
+    });
     let s = new ScopeState(this);
     s.freeIdentifiers = freeMap;
     if (!keepBindingsForParent) {
@@ -202,9 +245,10 @@ export default class ScopeState {
    * carried forward into the new state object.
    */
   finish(astNode, scopeType, { shouldResolveArguments = false, shouldB33 = false, paramsToBlockB33Hoisting } = {}) {
+    // debugger // TODO remove
     let variables = [];
     let functionScoped = new MultiMap;
-    let freeIdentifiers = merge(new MultiMap, this.freeIdentifiers);
+    let freeIdentifiers = new Map(this.freeIdentifiers);
     let pvsfd = merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations);
     let children = this.children;
 
@@ -274,7 +318,7 @@ export default class ScopeState {
             new Scope({
               children,
               variables: resolveDeclarations(freeIdentifiers, this.blockScopedDeclarations, []),
-              through: merge(new MultiMap, freeIdentifiers),
+              through: new Map(freeIdentifiers),
               type: ScopeType.SCRIPT,
               isDynamic: this.dynamic,
               astNode,

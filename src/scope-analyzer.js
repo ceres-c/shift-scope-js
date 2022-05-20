@@ -21,6 +21,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
+import { Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -77,7 +78,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentExpression(node, { binding, expression }) {
-    return super.reduceAssignmentExpression(node, {
+    return super.reduceAssignmentExpression(node, { // TODO decomment
       binding: binding.addReferences(Accessibility.WRITE),
       expression,
     });
@@ -233,7 +234,16 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceIdentifierExpression(node) {
     return new ScopeState({
-      freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]),
+      freeIdentifiers: new Map( [
+        [
+          node.name,
+          new Variable({
+            name: node.name,
+            references: [new Reference(node, Accessibility.READ)],
+          })
+        ]
+      ] ),
+      // freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]), // TODO remove
     });
   }
 
@@ -305,7 +315,21 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceUnaryExpression(node, { operand }) {
     if (node.operator === 'delete' && node.operand.type === 'IdentifierExpression') {
       // 'delete x' is a special case.
-      return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) });
+      let s = super.reduceUnaryExpression(node, { operand }); // TODO remove
+      let s2 = new ScopeState({
+        freeIdentifiers: new Map([
+          [
+            node.operand.name,
+            new Variable({
+              name: node.operand.name,
+              references: [new Reference(node.operand, Accessibility.DELETE)],
+            })
+          ]
+        ])
+      });
+      return s2;
+
+      // return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) }); // TODO remove
     }
     return super.reduceUnaryExpression(node, { operand });
   }

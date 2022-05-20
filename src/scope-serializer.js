@@ -33,6 +33,7 @@ class Serializer {
   }
 
   serializeScope(scope) {
+    debugger
     return `{"node": "${this.serializeNode(scope.astNode)}"`
    + `, "type": "${scope.type.name}"`
    + `, "isDynamic": ${scope.dynamic}`
@@ -56,7 +57,8 @@ class Serializer {
 
   collectThrough(through) {
     let references = [];
-    through.forEach(v => references.push(v));
+    debugger
+    through.forEach(v => references.push(...v.references));
     return references.sort(this.referenceCompare);
   }
 
@@ -67,6 +69,7 @@ class Serializer {
   }
 
   serializeReferenceList(references) {
+    debugger
     return `[${references.map(this.serializeReference.bind(this)).join(', ')}]`;
   }
 

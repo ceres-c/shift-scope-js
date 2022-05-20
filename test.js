@@ -22,6 +22,10 @@ let a = {};
 [a, b.c] = [{ testKey: 'assignedValue', testKeyA: 'othervalue' }];
 `
 
+input_src = `
+v1 = 0; var v2 = v1;
+`
+
 let tree = parseScript(input_src);
 
 // Remove strings array decoding function and strings array function itself
