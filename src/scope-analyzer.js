@@ -21,7 +21,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Variable } from './variable';
+import { Binding, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -85,14 +85,14 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentTargetIdentifier(node) {
-    return new ScopeState({ atsForParent: [node] });
+    return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node:node})] });
   }
 
   reduceBindingIdentifier(node) {
     if (node.name === '*default*') {
       return new ScopeState;
     }
-    return new ScopeState({ bindingsForParent: [node] });
+    return new ScopeState({ bindingsForParent: [new Binding({name: node.name, path: node.name, node:node})] });
   }
 
   reduceBindingPropertyIdentifier(node, { binding, init }) {
@@ -243,7 +243,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
           })
         ]
       ] ),
-      // freeIdentifiers: new MultiMap([[node.name, new Reference(node, Accessibility.READ)]]), // TODO remove
     });
   }
 
@@ -315,8 +314,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceUnaryExpression(node, { operand }) {
     if (node.operator === 'delete' && node.operand.type === 'IdentifierExpression') {
       // 'delete x' is a special case.
-      let s = super.reduceUnaryExpression(node, { operand }); // TODO remove
-      let s2 = new ScopeState({
+      return new ScopeState({
         freeIdentifiers: new Map([
           [
             node.operand.name,
@@ -327,9 +325,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
           ]
         ])
       });
-      return s2;
-
-      // return new ScopeState({ freeIdentifiers: new MultiMap([[node.operand.name, new Reference(node.operand, Accessibility.DELETE)]]) }); // TODO remove
     }
     return super.reduceUnaryExpression(node, { operand });
   }

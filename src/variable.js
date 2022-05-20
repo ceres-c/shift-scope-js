@@ -109,6 +109,20 @@ export class Property {
   }
 }
 
+export class Binding {
+  constructor(
+    {
+      name = '',
+      path = '',
+      node = null,
+    } = {}
+  ) {
+    this.name = name;
+    this.path = path;
+    this.node = node;
+  }
+}
+
 
 
 

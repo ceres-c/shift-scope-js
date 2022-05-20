@@ -77,7 +77,6 @@ export default class ScopeState {
    * Monoidal append: merges the two states together
    */
   concat(b) {
-    // debugger; // TODO removefreeMap
     if (this === b) {
       return this;
     }
@@ -142,7 +141,6 @@ export default class ScopeState {
   }
 
   setNodeInPath(p, n) {
-    debugger;
     if (p === '' || p === '.') {
       throw new Error('Invalid empty path');
     }
@@ -152,7 +150,7 @@ export default class ScopeState {
     let [ last ] = parts.slice(-1);
     let identifiers = this.freeIdentifiers;
 
-    let identifier = identifiers; // Default to top-level map of Variables
+    let identifier = this.freeIdentifiers; // Default to top-level map of Variables
     for(let n of names) {
       identifier = identifiers.get(n);
       if (identifier === undefined) {
@@ -174,7 +172,7 @@ export default class ScopeState {
       kind.isBlockScoped ? this.blockScopedDeclarations : this.functionScopedDeclarations,
     );
     this.bindingsForParent.forEach(binding =>
-      declMap.set(binding.name, new Declaration(binding, kind)),
+      declMap.set(binding.name, new Declaration(binding.node, kind)),
     );
     let s = new ScopeState(this);
     if (kind.isBlockScoped) {
@@ -198,7 +196,7 @@ export default class ScopeState {
     merge(
       s.functionDeclarations,
       new MultiMap([
-        [binding.name, new Declaration(binding, DeclarationType.FUNCTION_DECLARATION)],
+        [binding.name, new Declaration(binding.node, DeclarationType.FUNCTION_DECLARATION)],
       ]),
     );
     s.bindingsForParent = [];
@@ -213,19 +211,17 @@ export default class ScopeState {
 
     let s = new ScopeState(this);
     this.bindingsForParent.forEach(binding => {
-      let path = binding.name; // TODO change path to actual Binding.path
-      let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
-      let result = s.setNodeInPath(path, current.addReference(new Reference(binding, accessibility)));
+      let current = s.getNodeFromPath(binding.path) || newNodeFromPath(binding.path, binding.name);
+      let result = s.setNodeInPath(binding.path, current.addReference(new Reference(binding.node, accessibility)));
       if (!result) {
-        throw new Error(`Could not set node in path ${path}`);
+        throw new Error(`Could not set node in path ${binding.path}`);
       }
     });
     this.atsForParent.forEach(binding => {
-      let path = binding.name; // TODO change path to actual Binding.path attribute
-      let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
-      let result = s.setNodeInPath(path, current.addReference(new Reference(binding, accessibility)));
+      let current = s.getNodeFromPath(binding.path) || newNodeFromPath(binding.path, binding.name);
+      let result = s.setNodeInPath(binding.path, current.addReference(new Reference(binding.node, accessibility)));
       if (!result) {
-        throw new Error(`Could not set node in path ${path}`);
+        throw new Error(`Could not set node in path ${binding.path}`);
       }
     });
     if (!keepBindingsForParent) {
