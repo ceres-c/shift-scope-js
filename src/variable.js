@@ -56,6 +56,12 @@ export class Variable {
       }
     )
   }
+
+  addReference(r) {
+    let v = new Variable(this);
+    v.references.push(r);
+    return v;
+  }
 }
 
 // Monadic class
@@ -95,8 +101,13 @@ export class Property {
       properties: newProperties,
     });
   }
-}
 
+  addReference(r) {
+    let p = new Property(this);
+    p.references.push(r);
+    return p;
+  }
+}
 
 
 

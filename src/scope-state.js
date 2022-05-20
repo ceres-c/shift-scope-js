@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Variable } from './variable';
+import { Variable, Property } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -28,6 +28,7 @@ function merge(multiMap, otherMultiMap) {
 }
 
 function resolveDeclarations(freeIdentifiers, decls, variables) {
+  // freeIdentifiers.get() can be used instead of getNodeFromPath() since we're operating only on variables here
   decls.forEachEntry((declarations, name) => {
     if (freeIdentifiers.has(name)) {
       let current = new Variable(freeIdentifiers.get(name));
@@ -70,30 +71,6 @@ export default class ScopeState {
 
   static empty() {
     return new ScopeState({});
-  }
-
-  /*
-   * Get either a variable or a property given the full path; undefined if not found.
-   * e.g. `foo.bar.baz` returns property baz of property bar of variable foo
-   *      `foo` returns variable foo
-   */
-  getNodeFromPath(p) {
-    if (p === '' || p === '.') {
-      throw new Error('Invalid empty path');
-    }
-
-    let names = p.split('.');
-    let identifier; // Can be either a variable or a property
-    let identifiers = this.freeIdentifiers;
-
-    for(identifier of names) {
-      identifier = identifiers.get(identifier);
-      if (identifier === undefined) {
-        return undefined;
-      }
-      identifiers = identifier.properties;
-    }
-    return identifier;
   }
 
   /*
@@ -141,6 +118,30 @@ export default class ScopeState {
   }
 
   /*
+   * Get either a variable or a property given the full path; undefined if not found.
+   * e.g. `foo.bar.baz` returns property baz of property bar of variable foo
+   *      `foo` returns variable foo
+   */
+  getNodeFromPath(p) {
+    if (p === '' || p === '.') {
+      throw new Error('Invalid empty path');
+    }
+
+    let names = p.split('.');
+    let identifiers = this.freeIdentifiers;
+
+    let identifier; // Can be either a variable or a property
+    for(let n of names) {
+      identifier = identifiers.get(n);
+      if (identifier === undefined) {
+        return undefined;
+      }
+      identifiers = identifier.properties;
+    }
+    return identifier;
+  }
+
+  /*
    * Observe variables entering scope
    */
   addDeclarations(kind, keepBindingsForParent = false) {
@@ -185,23 +186,19 @@ export default class ScopeState {
    * Observe a reference to a variable
    */
   addReferences(accessibility, keepBindingsForParent = false) {
-    let freeMap = new Map(this.freeIdentifiers)
+    const newNodeFromPath = (p, name) => p.includes('.') ? new Property({name: name}) : new Variable({name: name});
+
+    let s = new ScopeState(this);
     this.bindingsForParent.forEach(binding => {
-      if (freeMap.has(binding.name)) {
-        freeMap.get(binding.name).references.push(new Reference(binding, accessibility));
-      } else {
-        freeMap.set(binding.name, new Variable({name: binding.name, references: [new Reference(binding, accessibility)]}));
-      }
+      let path = binding.name; // TODO change path to actual Binding.path
+      let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
+      s.freeIdentifiers.set(binding.name, current.addReference(new Reference(binding, accessibility)));
     });
     this.atsForParent.forEach(binding => {
-      if (freeMap.has(binding.name)) {
-        freeMap.get(binding.name).references.push(new Reference(binding, accessibility));
-      } else {
-        freeMap.set(binding.name, new Variable({name: binding.name, references: [new Reference(binding, accessibility)]}));
-      }
+      let path = binding.name; // TODO change path to actual Binding.path attribute
+      let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
+      s.freeIdentifiers.set(binding.name, current.addReference(new Reference(binding, accessibility)));
     });
-    let s = new ScopeState(this);
-    s.freeIdentifiers = freeMap;
     if (!keepBindingsForParent) {
       s.bindingsForParent = [];
       s.atsForParent = [];
