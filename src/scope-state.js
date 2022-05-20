@@ -130,7 +130,7 @@ export default class ScopeState {
     let names = p.split('.');
     let identifiers = this.freeIdentifiers;
 
-    let identifier; // Can be either a variable or a property
+    let identifier; // Could be either a Variable or a Property
     for(let n of names) {
       identifier = identifiers.get(n);
       if (identifier === undefined) {
@@ -139,6 +139,29 @@ export default class ScopeState {
       identifiers = identifier.properties;
     }
     return identifier;
+  }
+
+  setNodeInPath(p, n) {
+    debugger;
+    if (p === '' || p === '.') {
+      throw new Error('Invalid empty path');
+    }
+
+    let parts = p.split('.');
+    let names = parts.slice(0, -1);
+    let [ last ] = parts.slice(-1);
+    let identifiers = this.freeIdentifiers;
+
+    let identifier = identifiers; // Default to top-level map of Variables
+    for(let n of names) {
+      identifier = identifiers.get(n);
+      if (identifier === undefined) {
+        return false;
+      }
+      identifiers = identifier.properties;
+    }
+    identifier.set(last, n);
+    return true;
   }
 
   /*
@@ -192,12 +215,18 @@ export default class ScopeState {
     this.bindingsForParent.forEach(binding => {
       let path = binding.name; // TODO change path to actual Binding.path
       let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
-      s.freeIdentifiers.set(binding.name, current.addReference(new Reference(binding, accessibility)));
+      let result = s.setNodeInPath(path, current.addReference(new Reference(binding, accessibility)));
+      if (!result) {
+        throw new Error(`Could not set node in path ${path}`);
+      }
     });
     this.atsForParent.forEach(binding => {
       let path = binding.name; // TODO change path to actual Binding.path attribute
       let current = s.getNodeFromPath(path) || newNodeFromPath(path, binding.name);
-      s.freeIdentifiers.set(binding.name, current.addReference(new Reference(binding, accessibility)));
+      let result = s.setNodeInPath(path, current.addReference(new Reference(binding, accessibility)));
+      if (!result) {
+        throw new Error(`Could not set node in path ${path}`);
+      }
     });
     if (!keepBindingsForParent) {
       s.bindingsForParent = [];
