@@ -271,7 +271,6 @@ export default class ScopeState {
    * carried forward into the new state object.
    */
   finish(astNode, scopeType, { shouldResolveArguments = false, shouldB33 = false, paramsToBlockB33Hoisting } = {}) {
-    // debugger // TODO remove
     let variables = [];
     let functionScoped = new MultiMap;
     let freeIdentifiers = new Map(this.freeIdentifiers);

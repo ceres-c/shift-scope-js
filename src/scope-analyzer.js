@@ -78,7 +78,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentExpression(node, { binding, expression }) {
-    return super.reduceAssignmentExpression(node, { // TODO decomment
+    return super.reduceAssignmentExpression(node, {
       binding: binding.addReferences(Accessibility.WRITE),
       expression,
     });
