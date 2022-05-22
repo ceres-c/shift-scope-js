@@ -55,6 +55,7 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
+      lastPath = '',
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -67,6 +68,7 @@ export default class ScopeState {
     this.atsForParent = atsForParent;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
+    this.lastPath = lastPath;
   }
 
   static empty() {
@@ -113,6 +115,7 @@ export default class ScopeState {
         b.potentiallyVarScopedFunctionDeclarations,
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
+      lastPath: this.lastPath || b.lastPath,
     });
   }
 
@@ -129,15 +132,15 @@ export default class ScopeState {
     let names = p.split('.');
     let identifiers = this.freeIdentifiers;
 
-    let identifier; // Could be either a Variable or a Property
+    let i; // Could be either a Variable or a Property
     for(let n of names) {
-      identifier = identifiers.get(n);
-      if (identifier === undefined) {
+      i = identifiers.get(n);
+      if (i === undefined) {
         return undefined;
       }
-      identifiers = identifier.properties;
+      identifiers = i.properties;
     }
-    return identifier;
+    return i;
   }
 
   setNodeInPath(p, n) {
@@ -150,15 +153,15 @@ export default class ScopeState {
     let [ last ] = parts.slice(-1);
     let identifiers = this.freeIdentifiers;
 
-    let identifier = this.freeIdentifiers; // Default to top-level map of Variables
+    let i;
     for(let n of names) {
-      identifier = identifiers.get(n);
-      if (identifier === undefined) {
+      i = identifiers.get(n);
+      if (i === undefined) {
         return false;
       }
-      identifiers = identifier.properties;
+      identifiers = i.properties;
     }
-    identifier.set(last, n);
+    identifiers.set(last, n);
     return true;
   }
 
@@ -228,6 +231,23 @@ export default class ScopeState {
       s.bindingsForParent = [];
       s.atsForParent = [];
     }
+    return s;
+  }
+
+  addProperty(property) {
+    let s = new ScopeState(this);
+    let current = s.getNodeFromPath(s.lastPath);
+    if (current === undefined) {
+      throw new Error(`Could not find node in path ${s.lastPath} to add property ${property.name}`);
+    }
+
+    let e = current.empty(); // TODO implement empty in both Variable and Property
+    e.name = current.name;
+    e.properties.set(property.name, property);
+
+    s.setNodeInPath(s.lastPath, current.concat(e));
+    s.lastPath = s.lastPath + '.' + property.name;
+
     return s;
   }
 

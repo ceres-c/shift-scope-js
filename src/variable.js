@@ -30,6 +30,10 @@ export class Variable {
     this.properties = properties;
   }
 
+  empty() {
+    return new Variable({});
+  }
+
   /*
    * Monoidal append: merges the two variables together
    */
@@ -44,7 +48,7 @@ export class Variable {
     let newProperties = new Map(this.properties);
     b.properties.forEach((v, k) => {
       let current = newProperties.get(k) || new Property({name: k});
-      newProperties.set(current.concat(v));
+      newProperties.set(k, current.concat(v));
     });
 
     return new Variable(
@@ -78,6 +82,10 @@ export class Property {
     this.properties = properties;
   }
 
+  empty() {
+    return new Property({});
+  }
+
   /*
    * Monoidal append: merges the two properties together
    * Dumb recursive implementation
@@ -93,7 +101,7 @@ export class Property {
     let newProperties = new Map(this.properties);
     b.properties.forEach((v, k) => {
       let current = newProperties.get(k) || new Property({name: k});
-      newProperties.set(current.concat(v));
+      newProperties.set(k, current.concat(v));
     });
     return new Property({
       name: this.name,

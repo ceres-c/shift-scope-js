@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-import MultiMap from 'multimap';
 import reduce, { MonoidalReducer } from 'shift-reducer';
 import ScopeState from './scope-state';
 import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, Variable } from './variable';
+import { Binding, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -85,14 +84,14 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentTargetIdentifier(node) {
-    return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node:node})] });
+    return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
   }
 
   reduceBindingIdentifier(node) {
     if (node.name === '*default*') {
       return new ScopeState;
     }
-    return new ScopeState({ bindingsForParent: [new Binding({name: node.name, path: node.name, node:node})] });
+    return new ScopeState({ bindingsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
   }
 
   reduceBindingPropertyIdentifier(node, { binding, init }) {
@@ -161,10 +160,52 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     });
   }
 
+  reduceComputedMemberAssignmentTarget(node, { object, expression }) {
+    if (node.expression.type === 'LiteralStringExpression') {
+      let s = super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .addProperty( new Property({name: node.expression.value}) ) // Add target property with no references
+        .withParameterExpressions();
+      s.atsForParent.push( new Binding({name: node.expression.value, path: object.lastPath + '.' + node.expression.value, node: node}));
+      return s;
+    } else if (node.expression.type.includes('Literal')) {
+      return super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .withParameterExpressions();
+    } else {
+      let s = super
+        .reduceComputedMemberAssignmentTarget(node, { object, expression })
+        .addProperty( new Property({name: '*dynamic*'}) ) // Add target property with no references
+        .withParameterExpressions();
+      s.atsForParent.push( new Binding({name: '*dynamic*', path: object.lastPath + '.' + '*dynamic*', node: node}) );
+      return s;
+    }
+  }
+
   reduceComputedMemberExpression(node, { object, expression }) {
-    return super
-      .reduceComputedMemberExpression(node, { object, expression })
-      .withParameterExpressions();
+    if (node.expression.type === 'LiteralStringExpression') {
+      return super.reduceComputedMemberExpression(node, {object, expression})
+        .addProperty(new Property({
+          name: node.expression.value,
+          references: [
+            new Reference(node, Accessibility.READ)
+          ]
+        }))
+        .withParameterExpressions();
+    } else if (node.expression.type.includes('Literal')) {
+      return super
+        .reduceComputedMemberExpression(node, { object, expression })
+        .withParameterExpressions();
+    } else {
+      return super.reduceComputedMemberExpression(node, {object, expression})
+        .addProperty(new Property({
+          name: '*dynamic*',
+          references: [
+            new Reference(node, Accessibility.READ)
+          ]
+        }))
+        .withParameterExpressions();
+    }
   }
 
   reduceForInStatement(node, { left, right, body }) {
@@ -243,6 +284,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
           })
         ]
       ] ),
+      lastPath: node.name,
     });
   }
 
@@ -288,6 +330,26 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     }
     return name.concat(
       this.finishFunction(node, param.addDeclarations(DeclarationType.PARAMETER), body),
+    );
+  }
+
+  reduceStaticMemberAssignmentTarget(node, { object }) {
+    let s = super
+      .reduceStaticMemberAssignmentTarget(node, { object })
+      .addProperty( new Property( { name: node.property }) ); // Add target property with no references
+    s.atsForParent.push( new Binding({name: node.property, path: object.lastPath + '.' + node.property, node: node}) );
+    return s;
+  }
+
+  reduceStaticMemberExpression(node, { object }) {
+    return super
+      .reduceStaticMemberExpression(node, {object})
+      .addProperty( new Property( {
+        name: node.property,
+        references: [
+          new Reference(node, Accessibility.READ)
+        ]
+      })
     );
   }
 
