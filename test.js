@@ -24,6 +24,8 @@ let a = {};
 
 input_src = `
 let a = 5;
+a.b[foo()];
+a.b[bar()];
 a.b['c'];
 [a.b.c, a.b.d] = [5, 6];
 `

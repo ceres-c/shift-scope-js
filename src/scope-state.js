@@ -235,11 +235,14 @@ export default class ScopeState {
   }
 
   addProperties(properties) {
-    const zip = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
+    const zipStandard = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
+    const zipRepeat   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
+    let zip = this.identifiersPath[this.identifiersPath.length - 1].isRest ? zipRepeat : zipStandard;
 
     let s = new ScopeState(this);
     let newPaths = [];
-    for (let [path, prop] of zip(s.identifiersPath, properties)) { // TODO check if `rest` exists when dealing with spread items
+    for (let [binding, prop] of zip(s.identifiersPath, properties)) {
+      let path = binding.path;
       let current = s.getNodeFromPath(path);
       if (current === undefined) {
         throw new Error(`Could not find node in path ${path} to add property ${prop.name}`);
@@ -250,7 +253,7 @@ export default class ScopeState {
       e.properties.set(prop.name, prop);
 
       s.setNodeInPath(path, current.concat(e));
-      newPaths.push(path + '.' + prop.name);
+      newPaths.push(binding.moveTo(prop.name));
     }
     s.identifiersPath = newPaths;
     return s;

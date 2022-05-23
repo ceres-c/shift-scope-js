@@ -123,10 +123,21 @@ export class Binding {
       name = '',
       path = '',
       node = null,
+      isRest = false,
     } = {}
   ) {
     this.name = name;
     this.path = path;
     this.node = node;
+    this.isRest = isRest;
+  }
+
+  // Append a name to current path (changes name as well)
+  moveTo(n, {node = null} = {}) {
+    let b = new Binding(this);
+    b.name = n;
+    b.path = b.path + '.' + n;
+    if (node) b.node = node;
+    return b;
   }
 }

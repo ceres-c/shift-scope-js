@@ -166,7 +166,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperties( [ new Property({name: node.expression.value}) ] ) // Add target property with no references
         .withParameterExpressions();
-      s.atsForParent.push( new Binding({name: node.expression.value, path: object.identifiersPath[0] + '.' + node.expression.value, node: node}));
+      s.atsForParent.push( object.identifiersPath[0].moveTo(node.expression.value, { node: node } ) );
       return s;
     } else if (node.expression.type.includes('Literal')) {
       return super
@@ -177,7 +177,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperties( [ new Property({name: '*dynamic*'}) ] ) // Add target property with no references
         .withParameterExpressions();
-      s.atsForParent.push( new Binding({name: '*dynamic*', path: object.identifiersPath[0] + '.' + '*dynamic*', node: node}) );
+      s.atsForParent.push( object.identifiersPath[0].moveTo('*dynamic*', { node: node } ) );
       return s;
     }
   }
@@ -207,6 +207,19 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .withParameterExpressions();
     }
   }
+
+  // reduceDataProperty(node, { name, expression }) {
+  // TODO decomment this when we have a way to handle data properties in state
+  //   return super.reduceDataProperty(node, { name, expression }).
+  //     addDataProperty(new Property({
+  //       name: node.name.value,
+  //       references: [
+  //         new Reference(node, Accessibility.WRITE)
+  //       ]
+  //     }));
+  // }
+  // TODO reduceShorthandProperty (e.g. `b = 1; a = {b};` => `a = {b: 1};`)
+  // No need to handle SpreadProperty (e.g. `b = {key1: 1}; a = {...b, key2: 2}` => a = {key1: 1, key2: 2}) since we don't care about them: properties are not being explicitly added. Maybe add a Property named '*spread*' to let the final user know?
 
   reduceForInStatement(node, { left, right, body }) {
     return super
@@ -284,7 +297,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
           })
         ]
       ] ),
-      identifiersPath: [node.name],
+      identifiersPath: [ new Binding({name: node.name, path: node.name}) ],
     });
   }
 
@@ -324,6 +337,17 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super.reduceScript(node, { directives, statements }).finish(node, ScopeType.SCRIPT, { shouldB33: !node.directives.some(d => d.rawValue === 'use strict') });
   }
 
+  // reduceObjectAssignmentTarget(node, { properties, rest }) {
+    // TODO This handles the left side of assignments like
+    // `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
+    // TODO AssignmentTargetPropertyIdentifier (a and b above) are not handled yet
+    // TODO add all remaining properties to rest, which is an AssignmentTargetIdentifier
+  // }
+
+  // reduceObjectExpression(node, { properties }) {
+    // TODO this handles the right side of the assignment
+  // }
+
   reduceSetter(node, { name, param, body }) {
     if (param.hasParameterExpressions) {
       param = param.finish(node, ScopeType.PARAMETER_EXPRESSION);
@@ -337,7 +361,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = super
       .reduceStaticMemberAssignmentTarget(node, { object })
       .addProperties( [ new Property( { name: node.property }) ] ); // Add target property with no references
-    s.atsForParent.push( new Binding({name: node.property, path: object.identifiersPath[0] + '.' + node.property, node: node}) );
+    s.atsForParent.push( object.identifiersPath[0].moveTo(node.property, { node: node }) );
     return s;
   }
 
