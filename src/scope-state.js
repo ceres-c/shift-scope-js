@@ -55,7 +55,7 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
-      lastPath = '',
+      paths = [],
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -68,7 +68,7 @@ export default class ScopeState {
     this.atsForParent = atsForParent;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
-    this.lastPath = lastPath;
+    this.paths = paths;
   }
 
   static empty() {
@@ -115,7 +115,7 @@ export default class ScopeState {
         b.potentiallyVarScopedFunctionDeclarations,
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
-      lastPath: this.lastPath || b.lastPath,
+      paths: [...this.paths, ...b.paths],
     });
   }
 
@@ -234,20 +234,25 @@ export default class ScopeState {
     return s;
   }
 
-  addProperty(property) {
+  addProperties(properties) {
+    const zip = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
+
     let s = new ScopeState(this);
-    let current = s.getNodeFromPath(s.lastPath);
-    if (current === undefined) {
-      throw new Error(`Could not find node in path ${s.lastPath} to add property ${property.name}`);
+    let newPaths = [];
+    for (let [path, prop] of zip(s.paths, properties)) { // TODO check if `rest` exists when dealing with spread items
+      let current = s.getNodeFromPath(path);
+      if (current === undefined) {
+        throw new Error(`Could not find node in path ${path} to add property ${prop.name}`);
+      }
+
+      let e = current.empty();
+      e.name = current.name;
+      e.properties.set(prop.name, prop);
+
+      s.setNodeInPath(path, current.concat(e));
+      newPaths.push(path + '.' + prop.name);
     }
-
-    let e = current.empty(); // TODO implement empty in both Variable and Property
-    e.name = current.name;
-    e.properties.set(property.name, property);
-
-    s.setNodeInPath(s.lastPath, current.concat(e));
-    s.lastPath = s.lastPath + '.' + property.name;
-
+    s.paths = newPaths;
     return s;
   }
 
