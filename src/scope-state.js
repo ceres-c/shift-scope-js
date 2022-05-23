@@ -55,7 +55,7 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
-      paths = [],
+      identifiersPath = [], // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -68,7 +68,7 @@ export default class ScopeState {
     this.atsForParent = atsForParent;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
-    this.paths = paths;
+    this.identifiersPath = identifiersPath;
   }
 
   static empty() {
@@ -115,7 +115,7 @@ export default class ScopeState {
         b.potentiallyVarScopedFunctionDeclarations,
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
-      paths: [...this.paths, ...b.paths],
+      identifiersPath: [...this.identifiersPath, ...b.identifiersPath],
     });
   }
 
@@ -239,7 +239,7 @@ export default class ScopeState {
 
     let s = new ScopeState(this);
     let newPaths = [];
-    for (let [path, prop] of zip(s.paths, properties)) { // TODO check if `rest` exists when dealing with spread items
+    for (let [path, prop] of zip(s.identifiersPath, properties)) { // TODO check if `rest` exists when dealing with spread items
       let current = s.getNodeFromPath(path);
       if (current === undefined) {
         throw new Error(`Could not find node in path ${path} to add property ${prop.name}`);
@@ -252,7 +252,7 @@ export default class ScopeState {
       s.setNodeInPath(path, current.concat(e));
       newPaths.push(path + '.' + prop.name);
     }
-    s.paths = newPaths;
+    s.identifiersPath = newPaths;
     return s;
   }
 

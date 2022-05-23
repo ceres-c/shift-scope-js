@@ -166,7 +166,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperties( [ new Property({name: node.expression.value}) ] ) // Add target property with no references
         .withParameterExpressions();
-      s.atsForParent.push( new Binding({name: node.expression.value, path: object.paths[0] + '.' + node.expression.value, node: node}));
+      s.atsForParent.push( new Binding({name: node.expression.value, path: object.identifiersPath[0] + '.' + node.expression.value, node: node}));
       return s;
     } else if (node.expression.type.includes('Literal')) {
       return super
@@ -177,7 +177,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .reduceComputedMemberAssignmentTarget(node, { object, expression })
         .addProperties( [ new Property({name: '*dynamic*'}) ] ) // Add target property with no references
         .withParameterExpressions();
-      s.atsForParent.push( new Binding({name: '*dynamic*', path: object.paths[0] + '.' + '*dynamic*', node: node}) );
+      s.atsForParent.push( new Binding({name: '*dynamic*', path: object.identifiersPath[0] + '.' + '*dynamic*', node: node}) );
       return s;
     }
   }
@@ -284,7 +284,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
           })
         ]
       ] ),
-      paths: [node.name],
+      identifiersPath: [node.name],
     });
   }
 
@@ -337,7 +337,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = super
       .reduceStaticMemberAssignmentTarget(node, { object })
       .addProperties( [ new Property( { name: node.property }) ] ); // Add target property with no references
-    s.atsForParent.push( new Binding({name: node.property, path: object.paths[0] + '.' + node.property, node: node}) );
+    s.atsForParent.push( new Binding({name: node.property, path: object.identifiersPath[0] + '.' + node.property, node: node}) );
     return s;
   }
 
