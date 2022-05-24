@@ -30,6 +30,10 @@ a.b['c'];
 [a.b.c, a.b.d] = [5, 6];
 `
 
+input_src = `
+a = {b: {x: 1, y: 2}, c: 3};
+`
+
 let tree = parseScript(input_src);
 
 // Remove strings array decoding function and strings array function itself

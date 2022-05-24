@@ -56,6 +56,8 @@ export default class ScopeState {
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
       identifiersPath = [], // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
+      dataProperties = new Map,
+      wrappedDataProperties = new Map, // TODO rename to childDataProperties
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -69,6 +71,8 @@ export default class ScopeState {
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
     this.identifiersPath = identifiersPath;
+    this.dataProperties = dataProperties;
+    this.wrappedDataProperties = wrappedDataProperties;
   }
 
   static empty() {
@@ -83,12 +87,21 @@ export default class ScopeState {
       return this;
     }
 
-    let freeMap = new Map(this.freeIdentifiers)
+    let freeMap = new Map(this.freeIdentifiers); // TODO make mergePropertyMap function
     b.freeIdentifiers.forEach((v, k) => {
       if (freeMap.has(k)) {
         freeMap.set(k, freeMap.get(k).concat(v));
       } else {
         freeMap.set(k, v);
+      }
+    });
+
+    let dataProp = new Map(this.dataProperties);
+    b.dataProperties.forEach((v, k) => {
+      if (dataProp.has(k)) {
+        dataProp.set(k, dataProp.get(k).concat(v));
+      } else {
+        dataProp.set(k, v);
       }
     });
 
@@ -116,6 +129,8 @@ export default class ScopeState {
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
       identifiersPath: [...this.identifiersPath, ...b.identifiersPath],
+      dataProperties: dataProp,
+      wrappedDataProperties: new Map([...this.wrappedDataProperties, ...b.wrappedDataProperties]),
     });
   }
 
@@ -256,6 +271,20 @@ export default class ScopeState {
       newPaths.push(binding.moveTo(prop.name));
     }
     s.identifiersPath = newPaths;
+    return s;
+  }
+
+  addDataProperty(property) {
+    let s = new ScopeState(this);
+    let current = s.dataProperties.get(property.name) || new Property({name: property.name});
+    s.dataProperties.set(property.name, current.concat(property));
+    return s;
+  }
+
+  wrapDataProperties() {
+    let s = new ScopeState(this);
+    s.wrappedDataProperties = new Map(s.dataProperties);
+    s.dataProperties = new Map;
     return s;
   }
 

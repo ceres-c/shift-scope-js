@@ -208,16 +208,23 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     }
   }
 
-  // reduceDataProperty(node, { name, expression }) {
-  // TODO decomment this when we have a way to handle data properties in state
-  //   return super.reduceDataProperty(node, { name, expression }).
-  //     addDataProperty(new Property({
-  //       name: node.name.value,
-  //       references: [
-  //         new Reference(node, Accessibility.WRITE)
-  //       ]
-  //     }));
-  // }
+  reduceDataProperty(node, { name, expression }) {
+    // TODO add a Property to dataProperties (Map)
+    // TODO Merge dataProperties from sub-scopes in reduceDataProperty
+    debugger;
+    let s = super.reduceDataProperty(node, { name, expression });
+    // debugger;
+    s = expression.addDataProperty(new Property({
+      name: node.name.value,
+      references: [
+        new Reference(node, Accessibility.WRITE)
+      ],
+      properties: expression.wrappedDataProperties,
+    }));
+    s.wrappedDataProperties = new Map;
+    debugger;
+    return s;
+  }
   // TODO reduceShorthandProperty (e.g. `b = 1; a = {b};` => `a = {b: 1};`)
   // No need to handle SpreadProperty (e.g. `b = {key1: 1}; a = {...b, key2: 2}` => a = {key1: 1, key2: 2}) since we don't care about them: properties are not being explicitly added. Maybe add a Property named '*spread*' to let the final user know?
 
@@ -344,9 +351,13 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     // TODO add all remaining properties to rest, which is an AssignmentTargetIdentifier
   // }
 
-  // reduceObjectExpression(node, { properties }) {
-    // TODO this handles the right side of the assignment
-  // }
+  reduceObjectExpression(node, { properties }) {
+    debugger;
+    let s = super.reduceObjectExpression(node, { properties });
+    debugger;
+    s = s.wrapDataProperties();
+    return s;
+  }
 
   reduceSetter(node, { name, param, body }) {
     if (param.hasParameterExpressions) {
