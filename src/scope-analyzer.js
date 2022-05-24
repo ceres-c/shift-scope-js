@@ -209,20 +209,15 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceDataProperty(node, { name, expression }) {
-    // TODO add a Property to dataProperties (Map)
-    // TODO Merge dataProperties from sub-scopes in reduceDataProperty
-    debugger;
-    let s = super.reduceDataProperty(node, { name, expression });
-    // debugger;
-    s = expression.addDataProperty(new Property({
+    let s = new ScopeState().concat(name).concat(expression);
+    s = s.addDataProperty(new Property({
       name: node.name.value,
       references: [
         new Reference(node, Accessibility.WRITE)
       ],
-      properties: expression.wrappedDataProperties,
+      properties: s.wrappedDataProperties,
     }));
     s.wrappedDataProperties = new Map;
-    debugger;
     return s;
   }
   // TODO reduceShorthandProperty (e.g. `b = 1; a = {b};` => `a = {b: 1};`)
@@ -352,10 +347,20 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   // }
 
   reduceObjectExpression(node, { properties }) {
-    debugger;
-    let s = super.reduceObjectExpression(node, { properties });
-    debugger;
-    s = s.wrapDataProperties();
+    let oDP = new Map;
+    properties = properties.map(p => {
+      p.dataProperties.forEach((v, k) => {
+        if (oDP.has(k)) {
+          oDP.set(k, oDP.get(k).concat(v));
+        } else {
+          oDP.set(k, v);
+        }
+      });
+      p.dataProperties = new Map;
+      return p;
+    });
+    let s = this.append(...properties);
+    s.wrappedDataProperties = oDP;
     return s;
   }
 
