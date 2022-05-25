@@ -281,7 +281,7 @@ export default class ScopeState {
     return s;
   }
 
-  wrapDataProperties() { // TODO remove
+  wrapDataProperties() {
     let s = new ScopeState(this);
     s.wrappedDataProperties = new Map(s.dataProperties);
     s.dataProperties = new Map;

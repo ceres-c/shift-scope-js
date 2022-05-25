@@ -347,21 +347,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   // }
 
   reduceObjectExpression(node, { properties }) {
-    let oDP = new Map;
-    properties = properties.map(p => {
-      p.dataProperties.forEach((v, k) => {
-        if (oDP.has(k)) {
-          oDP.set(k, oDP.get(k).concat(v));
-        } else {
-          oDP.set(k, v);
-        }
-      });
-      p.dataProperties = new Map;
-      return p;
-    });
-    let s = this.append(...properties);
-    s.wrappedDataProperties = oDP;
-    return s;
+    return this.fold(properties).wrapDataProperties();
   }
 
   reduceSetter(node, { name, param, body }) {
