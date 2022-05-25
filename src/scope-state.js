@@ -61,9 +61,10 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
-      identifiersPath = [], // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
+      identifiersPath = [], // TODO restore previous version with single path // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
       dataProperties = new Map,
       wrappedDataProperties = new Map, // TODO rename to childDataProperties
+      prpForParent = [], // List of dataProperties maps from ArrayExpressions elements (order preserved)
       isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
     } = {},
   ) {
@@ -80,6 +81,7 @@ export default class ScopeState {
     this.identifiersPath = identifiersPath;
     this.dataProperties = dataProperties;
     this.wrappedDataProperties = wrappedDataProperties;
+    this.prpForParent = prpForParent;
     this.isArrayAT = isArrayAT;
   }
 
@@ -121,6 +123,7 @@ export default class ScopeState {
       identifiersPath: [...this.identifiersPath, ...b.identifiersPath],
       dataProperties: mergeMonadMap(this.dataProperties, b.dataProperties),
       wrappedDataProperties: mergeMonadMap(this.wrappedDataProperties, b.wrappedDataProperties),
+      prpForParent: [...this.prpForParent, ...b.prpForParent],
       isArrayAT: this.isArrayAT || b.isArrayAT,
     });
   }
@@ -240,7 +243,7 @@ export default class ScopeState {
     return s;
   }
 
-  addProperties(properties) {
+  addProperties(properties) { // TODO restore previous version with single property
     const zipStandard = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
     const zipRepeat   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
     let zip = this.identifiersPath[this.identifiersPath.length - 1].isRest ? zipRepeat : zipStandard;
@@ -265,7 +268,7 @@ export default class ScopeState {
     return s;
   }
 
-  notAcceptProperties() {
+  rejectProperties() {
     let s = new ScopeState(this);
     s.atsForParent = s.atsForParent.map(b => b.rejectProperties());
     return s;
@@ -285,6 +288,44 @@ export default class ScopeState {
     return s;
   }
 
+  mergeDataProperties(keepPropertiesForParent = false) {
+    const zipStandard = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
+    const zipRepeat   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
+    let zip = this.atsForParent[this.atsForParent.length - 1].isRest ? zipRepeat : zipStandard;
+
+    let s = new ScopeState(this);
+    if (s.atsForParent.length === 1) {
+      let path = s.atsForParent[0].path;
+      let current = s.getNodeFromPath(path);
+
+      let e = current.empty();
+      e.name = current.name;
+      e.properties = s.wrappedDataProperties;
+
+      s.setNodeInPath(path, current.concat(e));
+    } else {
+      // TODO create rich hierarchic data structure to handle ArrayAssignmentTargets and stop using atsForParent
+      for (let [binding, prop] of zip(s.atsForParent, s.prpForParent)) {
+        if (!binding.acceptProperties) {
+          continue;
+        }
+
+        let path = binding.path;
+        let current = s.getNodeFromPath(path);
+
+        let e = current.empty();
+        e.name = current.name;
+        e.properties = prop;
+
+        s.setNodeInPath(path, current.concat(e));
+      }
+    }
+    if (!keepPropertiesForParent) {
+      s.prpForParent = [];
+    }
+    return s;
+  }
+
   taint() {
     let s = new ScopeState(this);
     s.dynamic = true;
@@ -294,6 +335,12 @@ export default class ScopeState {
   withoutBindingsForParent() {
     let s = new ScopeState(this);
     s.bindingsForParent = [];
+    return s;
+  }
+
+  withoutAtsForParent() {
+    let s = new ScopeState(this);
+    s.atsForParent = [];
     return s;
   }
 
