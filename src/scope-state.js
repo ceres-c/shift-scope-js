@@ -27,6 +27,12 @@ function merge(multiMap, otherMultiMap) {
   return multiMap;
 }
 
+function mergeMonadMap(map, otherMap) {
+  let m = new Map(map);
+  otherMap.forEach((v, k) => {m.set(k, m.has(k) ? m.get(k).concat(v) : v)});
+  return m;
+};
+
 function resolveDeclarations(freeIdentifiers, decls, variables) {
   // freeIdentifiers.get() can be used instead of getNodeFromPath() since we're operating only on variables here
   decls.forEachEntry((declarations, name) => {
@@ -58,6 +64,7 @@ export default class ScopeState {
       identifiersPath = [], // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
       dataProperties = new Map,
       wrappedDataProperties = new Map, // TODO rename to childDataProperties
+      isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -73,6 +80,7 @@ export default class ScopeState {
     this.identifiersPath = identifiersPath;
     this.dataProperties = dataProperties;
     this.wrappedDataProperties = wrappedDataProperties;
+    this.isArrayAT = isArrayAT;
   }
 
   static empty() {
@@ -87,26 +95,8 @@ export default class ScopeState {
       return this;
     }
 
-    let freeMap = new Map(this.freeIdentifiers); // TODO make mergePropertyMap function
-    b.freeIdentifiers.forEach((v, k) => {
-      if (freeMap.has(k)) {
-        freeMap.set(k, freeMap.get(k).concat(v));
-      } else {
-        freeMap.set(k, v);
-      }
-    });
-
-    let dataProp = new Map(this.dataProperties);
-    b.dataProperties.forEach((v, k) => {
-      if (dataProp.has(k)) {
-        dataProp.set(k, dataProp.get(k).concat(v));
-      } else {
-        dataProp.set(k, v);
-      }
-    });
-
     return new ScopeState({
-      freeIdentifiers: freeMap,
+      freeIdentifiers: mergeMonadMap(this.freeIdentifiers, b.freeIdentifiers),
       functionScopedDeclarations: merge(
         merge(new MultiMap, this.functionScopedDeclarations),
         b.functionScopedDeclarations,
@@ -129,8 +119,9 @@ export default class ScopeState {
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
       identifiersPath: [...this.identifiersPath, ...b.identifiersPath],
-      dataProperties: dataProp,
-      wrappedDataProperties: new Map([...this.wrappedDataProperties, ...b.wrappedDataProperties]),
+      dataProperties: mergeMonadMap(this.dataProperties, b.dataProperties),
+      wrappedDataProperties: mergeMonadMap(this.wrappedDataProperties, b.wrappedDataProperties),
+      isArrayAT: this.isArrayAT || b.isArrayAT,
     });
   }
 
@@ -271,6 +262,12 @@ export default class ScopeState {
       newPaths.push(binding.moveTo(prop.name));
     }
     s.identifiersPath = newPaths;
+    return s;
+  }
+
+  notAcceptProperties() {
+    let s = new ScopeState(this);
+    s.atsForParent = s.atsForParent.map(b => b.rejectProperties());
     return s;
   }
 

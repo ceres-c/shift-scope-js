@@ -72,6 +72,37 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return params.concat(body).finish(fnNode, fnType, { shouldResolveArguments: !isArrowFn, shouldB33: this.sloppySet.has(fnNode) });
   }
 
+  reduceArrayAssignmentTarget(node, {elements, rest}) {
+    //////////////// Commented code does not mark `rest` as isRest. It might not be necessary for array assignment targets ////////////////
+    // TODO remove once I made my mind up
+    // let s = this.fold(
+    //   [...elements, rest] // Leave rest as last element
+    //   .filter(e => e != null)
+    //   .map(e => e.isArrayAT ? e.notAcceptProperties() : e )
+    // );
+    // // TODO test with
+    // // [a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]; // `rest` does not accept properties
+    // // [a, b, ...rest] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3];   // `rest` does accept properties
+    // s.isArrayAT = true;
+    // return s;
+    //////////////// Commented code does not mark `rest` as isRest. It might not be necessary for array assignment targets ////////////////
+
+    let scopes;
+    if (rest !== null) {
+      let r = new ScopeState(rest);
+      r.atsForParent = r.atsForParent.map(r => r.setRest());
+      scopes = [...elements, r]; // Leave rest as last element
+    } else {
+      scopes = elements;
+    }
+    let s = this.fold(scopes.map(e => e.isArrayAT ? e.notAcceptProperties() : e ));
+    s.isArrayAT = true;
+    return s;
+    // TODO test with
+    // [a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]; // `rest` does not accept properties
+    // [a, b, ...rest] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3];   // `rest` does accept properties
+  }
+
   reduceArrowExpression(node, { params, body }) {
     return this.finishFunction(node, params, body);
   }
@@ -215,7 +246,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       references: [
         new Reference(node, Accessibility.WRITE)
       ],
-      properties: s.wrappedDataProperties,
+      properties: s.wrappedDataProperties, // Move properties from underlying scope to this object
     }));
     s.wrappedDataProperties = new Map;
     return s;
@@ -339,12 +370,16 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super.reduceScript(node, { directives, statements }).finish(node, ScopeType.SCRIPT, { shouldB33: !node.directives.some(d => d.rawValue === 'use strict') });
   }
 
-  // reduceObjectAssignmentTarget(node, { properties, rest }) {
-    // TODO This handles the left side of assignments like
-    // `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
-    // TODO AssignmentTargetPropertyIdentifier (a and b above) are not handled yet
-    // TODO add all remaining properties to rest, which is an AssignmentTargetIdentifier
-  // }
+  reduceObjectAssignmentTarget(node, { properties, rest }) {
+    // TODO test with `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
+    if (rest !== null) {
+      let r = new ScopeState(rest);
+      r.atsForParent = r.atsForParent.map(r => r.setRest());
+      return this.fold([...properties, r]); // rest can't be used as an init value because that would modify the order of parameters
+    } else {
+      return this.fold(properties);
+    }
+  }
 
   reduceObjectExpression(node, { properties }) {
     return this.fold(properties).wrapDataProperties();

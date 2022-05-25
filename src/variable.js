@@ -124,20 +124,34 @@ export class Binding {
       path = '',
       node = null,
       isRest = false,
+      acceptProperties = true, // TODO keep or not?
     } = {}
   ) {
     this.name = name;
     this.path = path;
     this.node = node;
     this.isRest = isRest;
+    this.acceptProperties = acceptProperties;
   }
 
-  // Append a name to current path (changes name as well)
+  // Move current path down one level to a new node named `n`
   moveTo(n, {node = null} = {}) {
     let b = new Binding(this);
     b.name = n;
     b.path = b.path + '.' + n;
     if (node) b.node = node;
+    return b;
+  }
+
+  rejectProperties() {
+    let b = new Binding(this);
+    b.acceptProperties = false;
+    return b;
+  }
+
+  setRest() {
+    let b = new Binding(this);
+    b.isRest = true;
     return b;
   }
 }
