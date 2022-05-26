@@ -294,16 +294,7 @@ export default class ScopeState {
     let zip = this.atsForParent[this.atsForParent.length - 1].isRest ? zipRepeat : zipStandard;
 
     let s = new ScopeState(this);
-    if (s.atsForParent.length === 1) {
-      let path = s.atsForParent[0].path;
-      let current = s.getNodeFromPath(path);
-
-      let e = current.empty();
-      e.name = current.name;
-      e.properties = s.wrappedDataProperties;
-
-      s.setNodeInPath(path, current.concat(e));
-    } else {
+    if(s.isArrayAT) {
       // TODO create rich hierarchic data structure to handle ArrayAssignmentTargets and stop using atsForParent
       for (let [binding, prop] of zip(s.atsForParent, s.prpForParent)) {
         if (!binding.acceptProperties) {
@@ -319,6 +310,15 @@ export default class ScopeState {
 
         s.setNodeInPath(path, current.concat(e));
       }
+    } else {
+      let path = s.atsForParent[0].path;
+      let current = s.getNodeFromPath(path);
+
+      let e = current.empty();
+      e.name = current.name;
+      e.properties = s.wrappedDataProperties;
+
+      s.setNodeInPath(path, current.concat(e));
     }
     if (!keepPropertiesForParent) {
       s.prpForParent = [];

@@ -31,9 +31,9 @@ a.b['c'];
 `
 
 input_src = `
-// [a, b, ...rest] = [{x: 1}, [{y: 2}], {z: 3}];
+[a, b, ...rest] = [{x: 1}, [{y: 2}], {z: 3}];
 // ({a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40})
-a = {x: {o: 1}, y: 1}
+// a = {x: {o: 1}, y: 1}
 `
 
 let tree = parseScript(input_src);
