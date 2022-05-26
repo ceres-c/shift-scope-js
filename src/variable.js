@@ -124,7 +124,7 @@ export class Binding {
       path = '',
       node = null,
       isRest = false,
-      acceptProperties = true, // TODO keep or not?
+      acceptProperties = true,
     } = {}
   ) {
     this.name = name;

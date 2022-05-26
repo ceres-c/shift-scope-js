@@ -84,7 +84,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = this.fold(scopes);
     s.isArrayAT = true;
     return s;
-    // TODO test with
+    // TESTS
     // [a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]; // `rest` does not accept properties
     // [a, b, ...rest] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3];   // `rest` does accept properties
   }
@@ -210,12 +210,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceComputedMemberExpression(node, { object, expression }) {
     if (node.expression.type === 'LiteralStringExpression') {
       return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperties( [ new Property({
-          name: node.expression.value,
-          references: [
-            new Reference(node, Accessibility.READ)
-          ]
-        }) ] )
+        .addProperties( [ new Property({ name: node.expression.value, references: [ new Reference(node, Accessibility.READ) ], }) ] )
         .withParameterExpressions();
     } else if (node.expression.type.includes('Literal')) {
       return super
@@ -223,25 +218,39 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         .withParameterExpressions();
     } else {
       return super.reduceComputedMemberExpression(node, {object, expression})
-        .addProperties( [ new Property({
-          name: '*dynamic*',
-          references: [
-            new Reference(node, Accessibility.READ)
-          ]
-        }) ] )
+        .addProperties( [ new Property({ name: '*dynamic*', references: [ new Reference(node, Accessibility.READ) ], }) ] )
+        .withParameterExpressions();
+    }
+  }
+
+  reduceComputedPropertyName(node, { expression }) {
+    // TESTS a = {['x']: {['o']: 1}, ['y']: 2, [55]: 3, [Infinity]: 4, [true]: 5, [call()]: 6}
+    if (node.expression.type.includes('Literal')) {
+      return expression.concat(new ScopeState({
+        dataProperties: new Map().set(
+          node.expression.value.toString(), // JS do not use strings here, but we do to retain a consistent structure
+          new Property({ name: node.expression.value.toString(), references: [ new Reference(node, Accessibility.WRITE) ], })
+        )
+      }));
+    } else {
+      return expression
+        .concat(new ScopeState({
+          dataProperties: new Map().set(
+            '*dynamic*',
+            new Property({ name: '*dynamic*', references: [ new Reference(node, Accessibility.WRITE) ], })
+          )
+        }))
         .withParameterExpressions();
     }
   }
 
   reduceDataProperty(node, { name, expression }) {
     let s = new ScopeState().concat(name).concat(expression);
-    s = s.addDataProperty(new Property({ // TODO move this part to reduceStaticPropertyNode and implement reduceComputedPropertyNode
-      name: node.name.value,
-      references: [
-        new Reference(node, Accessibility.WRITE) // TODO change this node to the StaticPropertyNode itself
-      ],
-      properties: s.wrappedDataProperties, // TODO keep doing this here // Move properties from underlying scope to this object
-    }));
+
+    let [k, p] = [...s.dataProperties][0];
+
+    s.dataProperties = new Map()
+      .set(k, new Property( {name: p.name, references: p.references, properties: s.wrappedDataProperties} ) );
     s.wrappedDataProperties = new Map;
     return s;
   }
@@ -365,7 +374,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectAssignmentTarget(node, { properties, rest }) {
-    // TODO test with `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
+    // TESTS `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
     if (rest !== null) {
       let r = new ScopeState(rest);
       r.atsForParent = r.atsForParent.map(r => r.setRest());
@@ -406,6 +415,15 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         ]
       }) ]
     );
+  }
+
+  reduceStaticPropertyName(node) {
+    return new ScopeState({
+      dataProperties: new Map().set(
+        node.value,
+        new Property({ name: node.value, references: [ new Reference(node, Accessibility.WRITE) ], })
+      )
+    });
   }
 
   reduceSwitchStatement(node, { discriminant, cases }) {
