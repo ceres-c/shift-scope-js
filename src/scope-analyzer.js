@@ -76,12 +76,19 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let scopes;
     if (rest !== null) {
       let r = new ScopeState(rest);
-      r.atsForParent = r.atsForParent.map(r => r.setRest());
-      scopes = [...elements, r.rejectProperties()]; // Leave rest as last element
+      if (!r.isArrayAT) {
+        // Rest can't accept properties, unless it is an ArrayAssignmentTarget
+        r = r.setRest().rejectProperties();
+      }
+      scopes = [...elements, r]; // Leave rest as last element
     } else {
       scopes = elements;
     }
     let s = this.fold(scopes);
+    s.atsForParent = scopes.reduce((acc, state) =>
+      state.isArrayAT ? (acc.push(state.atsForParent), acc) : acc.concat(state.atsForParent)
+      // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
+    , []);
     s.isArrayAT = true;
     return s;
     // TESTS
@@ -91,7 +98,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceArrayExpression(node, { elements }) {
     let s = this.fold(elements);
-    s.prpForParent = elements.map(e => e.wrappedDataProperties);
+    s.prpForParent = elements.reduce((acc, state) =>
+      state.isArrayExpr ? (acc.push(state.prpForParent), acc) : acc.concat(state.prpForParent)
+      // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
+    , []);
+    s.isArrayExpr = true;
     return s;
   }
 
@@ -104,8 +115,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       binding: binding.addReferences(Accessibility.WRITE, true), // Keep atsForParent
       expression,
     });
-    s = s.mergeDataProperties().withoutAtsForParent();
-    return s;
+    return s.mergeDataProperties().withoutAtsForParent();
   }
 
   reduceAssignmentTargetIdentifier(node) {
@@ -250,8 +260,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let [k, p] = [...s.dataProperties][0];
 
     s.dataProperties = new Map()
-      .set(k, new Property( {name: p.name, references: p.references, properties: s.wrappedDataProperties} ) );
-    s.wrappedDataProperties = new Map;
+      .set(k, new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} ) );
+    s.prpForParent = [];
     return s;
   }
   // TODO reduceShorthandProperty (e.g. `b = 1; a = {b};` => `a = {b: 1};`)
@@ -376,8 +386,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceObjectAssignmentTarget(node, { properties, rest }) {
     // TESTS `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
     if (rest !== null) {
-      let r = new ScopeState(rest);
-      r.atsForParent = r.atsForParent.map(r => r.setRest());
+      let r = new ScopeState(rest).setRest();
       return this.fold([...properties, r]); // rest can't be used as an init value because that would modify the order of parameters
     } else {
       return this.fold(properties);

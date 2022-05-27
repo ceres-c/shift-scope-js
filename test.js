@@ -35,7 +35,9 @@ input_src = `
 // ({a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40})
 // a = {x: {o: 1}, y: 1}
 // a = { '55': 3, x: { o: 1 }, y: 2, Infinity: { a: 1, b: 2 }, true: 5, [call()]: 6 }
-[a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]
+// [a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]
+// [a, [b, c]] = [{x: 1, y: 2}, [{z: 3}, {k: 4}]]
+[a, [b, ...[rest1]], c, ...rest2] = [{x: 1}, [{y: 2}, {z: 3}, {w: 4}], {k: 5}, {u: 6}, {l: 7}];
 `
 
 let tree = parseScript(input_src);

@@ -61,11 +61,11 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
-      lastBinding = null, // TODO restore previous version with single path // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
+      lastBinding = null, // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
       dataProperties = new Map,
-      wrappedDataProperties = new Map, // TODO rename to childDataProperties
-      prpForParent = [], // List of dataProperties maps from ArrayExpressions elements (order preserved)
+      prpForParent = [], // List of dataProperties maps (or list of maps) from child ObjectExpression elements (order preserved)
       isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
+      isArrayExpr = false, // Marks wether this state comes from an ArrayExpression
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -80,9 +80,9 @@ export default class ScopeState {
     this.hasParameterExpressions = hasParameterExpressions;
     this.lastBinding = lastBinding;
     this.dataProperties = dataProperties;
-    this.wrappedDataProperties = wrappedDataProperties;
     this.prpForParent = prpForParent;
     this.isArrayAT = isArrayAT;
+    this.isArrayExpr = isArrayExpr;
   }
 
   static empty() {
@@ -122,9 +122,9 @@ export default class ScopeState {
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
       lastBinding: this.lastBinding || b.lastBinding,
       dataProperties: mergeMonadMap(this.dataProperties, b.dataProperties),
-      wrappedDataProperties: mergeMonadMap(this.wrappedDataProperties, b.wrappedDataProperties),
-      prpForParent: [...this.prpForParent, ...b.prpForParent],
+      prpForParent: this.prpForParent.concat(b.prpForParent),
       isArrayAT: this.isArrayAT || b.isArrayAT,
+      isArrayExpr: this.isArrayExpr || b.isArrayExpr,
     });
   }
 
@@ -229,7 +229,7 @@ export default class ScopeState {
         throw new Error(`Could not set node in path ${binding.path}`);
       }
     });
-    this.atsForParent.forEach(binding => {
+    this.atsForParent.flat(Infinity).forEach(binding => {
       let current = s.getNodeFromPath(binding.path) || newNodeFromPath(binding.path, binding.name);
       let result = s.setNodeInPath(binding.path, current.addReference(new Reference(binding.node, accessibility)));
       if (!result) {
@@ -245,7 +245,7 @@ export default class ScopeState {
 
   addProperty(property) {
     let s = new ScopeState(this);
-    let path = s.lastBinding.path; // TODO rename this in state
+    let path = s.lastBinding.path;
     let current = s.getNodeFromPath(path);
     if (current === undefined) {
       throw new Error(`Could not find node in path ${path} to add property ${property.name}`);
@@ -260,9 +260,15 @@ export default class ScopeState {
     return s;
   }
 
+  setRest() {
+    let s = new ScopeState(this);
+    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.setRest());
+    return s;
+  }
+
   rejectProperties() {
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(b => b.rejectProperties());
+    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.rejectProperties());
     return s;
   }
 
@@ -275,43 +281,44 @@ export default class ScopeState {
 
   wrapDataProperties() {
     let s = new ScopeState(this);
-    s.wrappedDataProperties = new Map(s.dataProperties);
+    s.prpForParent = [new Map(s.dataProperties)];
     s.dataProperties = new Map;
     return s;
   }
 
   mergeDataProperties(keepPropertiesForParent = false) {
-    const zipStandard = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
-    const zipRepeat   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
-    let zip = this.atsForParent[this.atsForParent.length - 1].isRest ? zipRepeat : zipStandard;
+    const zipStd = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
+    const zipRest   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
+
+    function recursiveCore(targets, sources) {
+      let zip = targets[targets.length - 1].isRest ? zipRest : zipStd;
+
+      for (let [binding, prop] of zip(targets, sources)) {
+        if (Array.isArray(binding)) {
+          recursiveCore(binding, Array.isArray(prop) ? prop : [prop]);
+          // Wrap in array as a workaround for destructuring assignment e.g. `[a, ...[rest]] = [{y: 2}, {z: 3}, {w: 4}]`
+        } else {
+          if (!binding.acceptProperties || Array.isArray(prop)) {
+          //   ^                           ^
+          //   |                           e.g. `a = [{b: 1}]`
+          //   e.g. ...rest in ArrayAssignmentTarget
+            continue;
+          }
+
+          let path = binding.path;
+          let current = s.getNodeFromPath(path);
+
+          let e = current.empty();
+          e.name = current.name;
+          e.properties = prop;
+
+          s.setNodeInPath(path, current.concat(e));
+        }
+      }
+    }
 
     let s = new ScopeState(this);
-    if(s.isArrayAT) {
-      // TODO create rich hierarchic data structure to handle ArrayAssignmentTargets and stop using atsForParent
-      for (let [binding, prop] of zip(s.atsForParent, s.prpForParent)) {
-        if (!binding.acceptProperties) {
-          continue;
-        }
-
-        let path = binding.path;
-        let current = s.getNodeFromPath(path);
-
-        let e = current.empty();
-        e.name = current.name;
-        e.properties = prop;
-
-        s.setNodeInPath(path, current.concat(e));
-      }
-    } else { // TODO check if right-side assignment is not an arrayExpression. Can't add properties to an arrayExpression
-      let path = s.atsForParent[0].path;
-      let current = s.getNodeFromPath(path);
-
-      let e = current.empty();
-      e.name = current.name;
-      e.properties = s.wrappedDataProperties;
-
-      s.setNodeInPath(path, current.concat(e));
-    }
+    recursiveCore(s.atsForParent, s.prpForParent);
     if (!keepPropertiesForParent) {
       s.prpForParent = [];
     }
