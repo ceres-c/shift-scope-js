@@ -61,7 +61,7 @@ export default class ScopeState {
       atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
-      identifiersPath = [], // TODO restore previous version with single path // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
+      lastBinding = null, // TODO restore previous version with single path // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
       dataProperties = new Map,
       wrappedDataProperties = new Map, // TODO rename to childDataProperties
       prpForParent = [], // List of dataProperties maps from ArrayExpressions elements (order preserved)
@@ -78,7 +78,7 @@ export default class ScopeState {
     this.atsForParent = atsForParent;
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
-    this.identifiersPath = identifiersPath;
+    this.lastBinding = lastBinding;
     this.dataProperties = dataProperties;
     this.wrappedDataProperties = wrappedDataProperties;
     this.prpForParent = prpForParent;
@@ -120,7 +120,7 @@ export default class ScopeState {
         b.potentiallyVarScopedFunctionDeclarations,
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
-      identifiersPath: [...this.identifiersPath, ...b.identifiersPath],
+      lastBinding: this.lastBinding || b.lastBinding,
       dataProperties: mergeMonadMap(this.dataProperties, b.dataProperties),
       wrappedDataProperties: mergeMonadMap(this.wrappedDataProperties, b.wrappedDataProperties),
       prpForParent: [...this.prpForParent, ...b.prpForParent],
@@ -243,28 +243,20 @@ export default class ScopeState {
     return s;
   }
 
-  addProperties(properties) { // TODO restore previous version with single property
-    const zipStandard = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
-    const zipRepeat   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
-    let zip = this.identifiersPath[this.identifiersPath.length - 1].isRest ? zipRepeat : zipStandard;
-
+  addProperty(property) {
     let s = new ScopeState(this);
-    let newPaths = [];
-    for (let [binding, prop] of zip(s.identifiersPath, properties)) {
-      let path = binding.path;
-      let current = s.getNodeFromPath(path);
-      if (current === undefined) {
-        throw new Error(`Could not find node in path ${path} to add property ${prop.name}`);
-      }
-
-      let e = current.empty();
-      e.name = current.name;
-      e.properties.set(prop.name, prop);
-
-      s.setNodeInPath(path, current.concat(e));
-      newPaths.push(binding.moveTo(prop.name));
+    let path = s.lastBinding.path; // TODO rename this in state
+    let current = s.getNodeFromPath(path);
+    if (current === undefined) {
+      throw new Error(`Could not find node in path ${path} to add property ${property.name}`);
     }
-    s.identifiersPath = newPaths;
+
+    let e = current.empty();
+    e.name = current.name;
+    e.properties.set(property.name, property);
+
+    s.setNodeInPath(path, current.concat(e));
+    s.lastBinding = s.lastBinding.moveTo(property.name);
     return s;
   }
 
@@ -310,7 +302,7 @@ export default class ScopeState {
 
         s.setNodeInPath(path, current.concat(e));
       }
-    } else {
+    } else { // TODO check if right-side assignment is not an arrayExpression. Can't add properties to an arrayExpression
       let path = s.atsForParent[0].path;
       let current = s.getNodeFromPath(path);
 
