@@ -85,10 +85,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       scopes = elements;
     }
     let s = this.fold(scopes);
-    s.atsForParent = scopes.reduce((acc, state) =>
-      state.isArrayAT ? (acc.push(state.atsForParent), acc) : acc.concat(state.atsForParent)
+    s.atsForParent = scopes.reduce(
+      (acc, state) => state.isArrayAT ? (acc.push(state.atsForParent), acc) : acc.concat(state.atsForParent),
       // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
-    , []);
+      []
+    );
     s.isArrayAT = true;
     return s;
     // TESTS
@@ -384,7 +385,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectAssignmentTarget(node, { properties, rest }) {
-    // TESTS `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
+    // TEST `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
     if (rest !== null) {
       let r = new ScopeState(rest).setRest();
       return this.fold([...properties, r]); // rest can't be used as an init value because that would modify the order of parameters

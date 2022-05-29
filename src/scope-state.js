@@ -286,7 +286,7 @@ export default class ScopeState {
     return s;
   }
 
-  mergeDataProperties(keepPropertiesForParent = false) {
+  mergeDataProperties() {
     const zipStd = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
     const zipRest   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
 
@@ -319,9 +319,10 @@ export default class ScopeState {
 
     let s = new ScopeState(this);
     recursiveCore(s.atsForParent, s.prpForParent);
-    if (!keepPropertiesForParent) {
+    if (this.isArrayAT) {
+      // e.g. a = [b] = [{x: 1}]
       s.prpForParent = [];
-    }
+    } // e.g. a = b = {x: 1}
     return s;
   }
 
