@@ -66,6 +66,7 @@ export default class ScopeState {
       prpForParent = [], // List of dataProperties maps (or list of maps) from child ObjectExpression elements (order preserved)
       isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
       isArrayExpr = false, // Marks wether this state comes from an ArrayExpression
+      isObjectAT = false, // Marks wether this state comes from an ObjectAssignmentTarget
     } = {},
   ) {
     this.freeIdentifiers = freeIdentifiers;
@@ -83,6 +84,7 @@ export default class ScopeState {
     this.prpForParent = prpForParent;
     this.isArrayAT = isArrayAT;
     this.isArrayExpr = isArrayExpr;
+    this.isObjectAT = isObjectAT;
   }
 
   static empty() {
@@ -125,6 +127,7 @@ export default class ScopeState {
       prpForParent: this.prpForParent.concat(b.prpForParent),
       isArrayAT: this.isArrayAT || b.isArrayAT,
       isArrayExpr: this.isArrayExpr || b.isArrayExpr,
+      isObjectAT: this.isObjectAT || b.isObjectAT,
     });
   }
 
@@ -317,12 +320,54 @@ export default class ScopeState {
       }
     }
 
+    if (this.atsForParent.length == 0) {
+      return this;
+    }
+
     let s = new ScopeState(this);
     recursiveCore(s.atsForParent, s.prpForParent);
-    if (this.isArrayAT) {
+    if (s.isArrayAT) {
       // e.g. a = [b] = [{x: 1}]
       s.prpForParent = [];
     } // e.g. a = b = {x: 1}
+    return s;
+  }
+
+  // Side effect: will delete all atsForParent, when this.isObjectAT === true
+  mergeObjectAssignment() {
+    function addProperties(binding, properties) { // properties is a Map
+      let path = binding.path;
+      let current = s.getNodeFromPath(path);
+
+      let e = current.empty();
+      e.name = current.name;
+      e.properties = properties;
+
+      s.setNodeInPath(path, current.concat(e));
+    }
+
+    if (!this.isObjectAT) {
+      return this;
+    }
+
+    let s = new ScopeState(this);
+    if (s.prpForParent.length != 1) {
+      throw new Error(`Expected 1 map of Properties, got ${prp.length}`);
+    }
+    let ats = s.atsForParent;
+    let prp = s.prpForParent[0];
+
+    let commonAts = ats.filter(b => prp.has(b.name));
+
+    commonAts.forEach(b => addProperties(b, prp.get(b.name).properties));
+
+    if(ats[ats.length - 1].isRest) {
+      let remainingProperties = new Map(prp);
+      commonAts.forEach(ats => remainingProperties.delete(ats.name));
+      addProperties(ats[ats.length - 1], remainingProperties);
+    }
+    s.isObjectAT = false;
+    s.atsForParent = [];
     return s;
   }
 

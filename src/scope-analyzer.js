@@ -116,11 +116,29 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       binding: binding.addReferences(Accessibility.WRITE, true), // Keep atsForParent
       expression,
     });
-    return s.mergeDataProperties().withoutAtsForParent();
+    return s
+      .mergeObjectAssignment()
+      .mergeDataProperties()
+      .withoutAtsForParent();
   }
 
   reduceAssignmentTargetIdentifier(node) {
     return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
+  }
+
+  reduceAssignmentTargetPropertyIdentifier(node, { binding, init }) {
+    let bName = binding.atsForParent[0].name;
+    if (init) {
+      let i = new ScopeState({
+        freeIdentifiers: new Map([ [bName, new Variable({name: bName})] ])
+      });
+      let s = this.fold([binding, init], i)
+        .mergeDataProperties()
+        .withParameterExpressions();
+      s.prpForParent = [];
+      return s;
+    }
+    return binding;
   }
 
   reduceBindingIdentifier(node) {
@@ -385,12 +403,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectAssignmentTarget(node, { properties, rest }) {
-    // TEST `{a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40}`
-    if (rest !== null) {
-      let r = new ScopeState(rest).setRest();
-      return this.fold([...properties, r]); // rest can't be used as an init value because that would modify the order of parameters
+    // TESTS `({a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40})`
+    if (rest) {
+      return this.fold([...properties, new ScopeState(rest).setRest()], new ScopeState({isObjectAT: true}));
+      // rest can't be used as an init value because that would modify the order of parameters
     } else {
-      return this.fold(properties);
+      return this.fold(properties, new ScopeState({isObjectAT: true}));
     }
   }
 
