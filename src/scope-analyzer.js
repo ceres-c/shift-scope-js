@@ -425,6 +425,17 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     );
   }
 
+  reduceShorthandProperty(node, { name }) {
+    return super
+      .reduceShorthandProperty(node, { name })
+      .concat(new ScopeState({
+        dataProperties: new Map().set(
+          node.name,
+          new Property({ name: node.name, references: [ new Reference(node, Accessibility.WRITE) ], })
+        )
+      }));
+  }
+
   reduceStaticMemberAssignmentTarget(node, { object }) {
     let s = super
       .reduceStaticMemberAssignmentTarget(node, { object })
