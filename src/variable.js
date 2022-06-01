@@ -124,7 +124,6 @@ export class Binding {
       path = '',
       node = null,
       isRest = false,
-      isObjAssignmentTarget = false, // TODO mark every ObjectAssignmentTarget
       acceptProperties = true,
     } = {}
   ) {
@@ -132,7 +131,6 @@ export class Binding {
     this.path = path;
     this.node = node;
     this.isRest = isRest;
-    this.isObjAssignmentTarget = isObjAssignmentTarget;
     this.acceptProperties = acceptProperties;
   }
 

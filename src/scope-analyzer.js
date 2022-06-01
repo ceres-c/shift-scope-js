@@ -283,8 +283,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     s.prpForParent = [];
     return s;
   }
-  // TODO reduceShorthandProperty (e.g. `b = 1; a = {b};` => `a = {b: 1};`)
-  // No need to handle SpreadProperty (e.g. `b = {key1: 1}; a = {...b, key2: 2}` => a = {key1: 1, key2: 2}) since we don't care about them: properties are not being explicitly added. Maybe add a Property named '*spread*' to let the final user know?
 
   reduceForInStatement(node, { left, right, body }) {
     return super
