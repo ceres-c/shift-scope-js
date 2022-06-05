@@ -21,6 +21,35 @@ import analyze, { Accessibility, ScopeType, serialize, annotate } from '../';
 
 const NO_REFERENCES = [];
 const NO_DECLARATIONS = [];
+const NO_PROPERTIES = new Map;
+
+function checkProps(actualProperties, expected, referenceTypes) {
+  assert.equal(actualProperties.size, expected.size);
+  expected.forEach((propertyEntryValue, propertyEntryKey) => {
+    assert.notEqual(propertyEntryValue, void 0); // todo this is to help with writing tests
+    let hasProperty = actualProperties.has(propertyEntryKey);
+    assert.notEqual(false, hasProperty);
+    let property = actualProperties.get(propertyEntryKey);
+    assert.equal(property.name, propertyEntryKey);
+
+    let refs = propertyEntryValue.references;
+    assert.equal(property.references.length, refs.length);
+    refs.forEach(node => {
+      assert.notEqual(node, void 0); // todo this is to help with writing tests
+      let referencesWithNode = property.references.filter(reference => reference.node === node);
+      assert.notEqual(0, referencesWithNode.length);
+      let ref = referencesWithNode[0];
+      assert.equal(ref.node, node);
+      let type = referenceTypes.get(ref.node);
+      assert(type != null);
+      assert.equal(ref.accessibility, type);
+    });
+
+    if (propertyEntryValue.properties) {
+      checkProps(property.properties, propertyEntryValue.properties, referenceTypes);
+    }
+  });
+}
 
 // "variables" parameter is a mapping of variable names from this scope object to the list of their declarations and their references
 function checkScope(scope, scopeNode, scopeType, isDynamic, children, through, variables, referenceTypes) {
@@ -67,6 +96,9 @@ function checkScope(scope, scopeNode, scopeType, isDynamic, children, through, v
       assert(type != null);
       assert.equal(ref.accessibility, type);
     });
+
+    let props = variableEntryValue[2];
+    checkProps(variable.properties, props, referenceTypes);
   });
 }
 
@@ -114,8 +146,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node1], NO_REFERENCES]);
-      variables.set('v2', [[v2Node1], [v2Node1]]);
+      variables.set('v1', [[v1Node1], NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v2Node1, Accessibility.WRITE);
@@ -138,8 +170,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node1], NO_REFERENCES]);
-      variables.set('v2', [[v2Node1], [v2Node1]]);
+      variables.set('v1', [[v1Node1], NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v2Node1, Accessibility.WRITE);
@@ -162,8 +194,8 @@ suite('unit', () => {
       let through = ['v1'];
 
       let variables = new Map;
-      variables.set('v1', [NO_DECLARATIONS, [v1Node1, v1Node2]]);
-      variables.set('v2', [[v2Node1], [v2Node1]]);
+      variables.set('v1', [NO_DECLARATIONS, [v1Node1, v1Node2], NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v1Node1, Accessibility.WRITE);
@@ -189,8 +221,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node2], [v1Node1, v1Node2]]);
-      variables.set('v2', [[v2Node1], [v2Node1]]);
+      variables.set('v1', [[v1Node2], [v1Node1, v1Node2], NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v1Node1, Accessibility.READ);
@@ -217,8 +249,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node1, v1Node2], [v1Node2, v1Node3]]);
-      variables.set('v2', [[v2Node1], [v2Node1]]);
+      variables.set('v1', [[v1Node1, v1Node2], [v1Node2, v1Node3], NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v1Node2, Accessibility.WRITE);
@@ -269,8 +301,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f1', [[f1Node1], [f1Node2]]);
-      variables.set('r', [[rNode1], [rNode1]]);
+      variables.set('f1', [[f1Node1], [f1Node2], NO_PROPERTIES]);
+      variables.set('r', [[rNode1], [rNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f1Node2, Accessibility.READ);
@@ -283,11 +315,11 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node1], [v1Node1, v1Node2]]);
-      variables.set('p1', [[p1Node1], NO_REFERENCES]);
-      variables.set('p2', [[p2Node1], [p2Node2]]);
-      variables.set('f2', [[f2Node1], [f2Node2]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('v1', [[v1Node1], [v1Node1, v1Node2], NO_PROPERTIES]);
+      variables.set('p1', [[p1Node1], NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('p2', [[p2Node1], [p2Node2], NO_PROPERTIES]);
+      variables.set('f2', [[f2Node1], [f2Node2], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v1Node1, Accessibility.WRITE);
@@ -302,9 +334,9 @@ suite('unit', () => {
       let through = ['v1', 'p2'];
 
       let variables = new Map;
-      variables.set('p1', [[p1Node2], [p1Node3]]);
-      variables.set('v2', [[v2Node1], [v2Node1, v2Node2]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('p1', [[p1Node2], [p1Node3], NO_PROPERTIES]);
+      variables.set('v2', [[v2Node1], [v2Node1, v2Node2], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(p1Node3, Accessibility.READ);
@@ -333,7 +365,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f', [[fNode1], [fNode2, fNode3]]);
+      variables.set('f', [[fNode1], [fNode2, fNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode2, Accessibility.WRITE);
@@ -346,7 +378,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -372,7 +404,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f', [[fNode1], [fNode1, fNode2, fNode3]]);
+      variables.set('f', [[fNode1], [fNode1, fNode2, fNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode1, Accessibility.WRITE);
@@ -386,7 +418,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -416,8 +448,8 @@ suite('unit', () => {
       let through = ['f1'];
 
       let variables = new Map;
-      variables.set('f2', [[f2Node1], [f2Node1, f2Node2]]);
-      variables.set('f1', [NO_DECLARATIONS, [f1Node3]]);
+      variables.set('f2', [[f2Node1], [f2Node1, f2Node2], NO_PROPERTIES]);
+      variables.set('f1', [NO_DECLARATIONS, [f1Node3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f2Node1, Accessibility.WRITE);
@@ -431,7 +463,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f1', [[f1Node1], [f1Node2]]);
+      variables.set('f1', [[f1Node1], [f1Node2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f1Node2, Accessibility.WRITE);
@@ -443,7 +475,7 @@ suite('unit', () => {
       let through = ['f1'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f1Node2, Accessibility.WRITE);
@@ -481,9 +513,9 @@ suite('unit', () => {
       let through = ['baz'];
 
       let variables = new Map;
-      variables.set('foo', [[fooNode1], [fooNode1]]);
-      variables.set('bar', [[barNode1], NO_REFERENCES]);
-      variables.set('baz', [NO_DECLARATIONS, [bazNode1]]);
+      variables.set('foo', [[fooNode1], [fooNode1], NO_PROPERTIES]);
+      variables.set('bar', [[barNode1], NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('baz', [NO_DECLARATIONS, [bazNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fooNode1, Accessibility.WRITE);
@@ -496,8 +528,8 @@ suite('unit', () => {
       let through = ['baz'];
 
       let variables = new Map;
-      variables.set('foo', [[fooNode3], [fooNode2, fooNode3, fooNode4]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('foo', [[fooNode3], [fooNode2, fooNode3, fooNode4], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fooNode2, Accessibility.READ);
@@ -540,9 +572,9 @@ suite('unit', () => {
       let through = ['c'];
 
       let variables = new Map;
-      variables.set('a', [[aNode1], [aNode1, aNode4]]);
-      variables.set('b', [[bNode1], [bNode2]]);
-      variables.set('c', [NO_DECLARATIONS, [cNode1]]);
+      variables.set('a', [[aNode1], [aNode1, aNode4], NO_PROPERTIES]);
+      variables.set('b', [[bNode1], [bNode2], NO_PROPERTIES]);
+      variables.set('c', [NO_DECLARATIONS, [cNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(aNode1, Accessibility.WRITE);
@@ -557,8 +589,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('a', [[aNode3], [aNode2]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('a', [[aNode3], [aNode2], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(aNode2, Accessibility.WRITE);
@@ -570,7 +602,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -610,7 +642,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('foo', [[fooNode1], NO_REFERENCES]);
+      variables.set('foo', [[fooNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -621,8 +653,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('bar', [[barNode1, barNode3], [barNode2]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('bar', [[barNode1, barNode3], [barNode2], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(barNode2, Accessibility.READ);
@@ -634,7 +666,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -645,7 +677,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -670,7 +702,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('foo', [[fooNode2], [fooNode1]]);
+      variables.set('foo', [[fooNode2], [fooNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fooNode1, Accessibility.READ);
@@ -682,7 +714,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -722,7 +754,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('foo', [[fooNode1], NO_REFERENCES]);
+      variables.set('foo', [[fooNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -733,8 +765,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('bar', [[barNode2, barNode3], [barNode1, barNode2, barNode3]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('bar', [[barNode2, barNode3], [barNode1, barNode2, barNode3], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(barNode1, Accessibility.READ);
@@ -748,7 +780,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -759,7 +791,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -785,8 +817,8 @@ suite('unit', () => {
       let through = ['f1', 'f2'];
 
       let variables = new Map;
-      variables.set('f1', [NO_DECLARATIONS, [f1Node1, f1Node2]]);
-      variables.set('f2', [NO_DECLARATIONS, [f2Node1]]);
+      variables.set('f1', [NO_DECLARATIONS, [f1Node1, f1Node2], NO_PROPERTIES]);
+      variables.set('f2', [NO_DECLARATIONS, [f2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f1Node1, Accessibility.WRITE);
@@ -800,7 +832,7 @@ suite('unit', () => {
       let through = ['f1', 'f2'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -826,7 +858,7 @@ suite('unit', () => {
       let through = ['f2'];
 
       let variables = new Map;
-      variables.set('f2', [NO_DECLARATIONS, [f2Node1]]);
+      variables.set('f2', [NO_DECLARATIONS, [f2Node1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f2Node1, Accessibility.READ);
@@ -838,8 +870,8 @@ suite('unit', () => {
       let through = ['f2'];
 
       let variables = new Map;
-      variables.set('f1', [[f1Node1], [f1Node1, f1Node2]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('f1', [[f1Node1], [f1Node1, f1Node2], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(f1Node1, Accessibility.WRITE);
@@ -870,7 +902,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f', [[fNode1], NO_REFERENCES]);
+      variables.set('f', [[fNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -881,10 +913,10 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('arg1', [[arg1Node1], [arg1Node2]]);
-      variables.set('arg2', [[arg2Node1], [arg2Node2]]);
-      variables.set('v1', [[v1Node1], [v1Node1]]);
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arg1', [[arg1Node1], [arg1Node2], NO_PROPERTIES]);
+      variables.set('arg2', [[arg2Node1], [arg2Node2], NO_PROPERTIES]);
+      variables.set('v1', [[v1Node1], [v1Node1], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(arg1Node2, Accessibility.READ);
@@ -913,7 +945,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f', [[fNode1], NO_REFERENCES]);
+      variables.set('f', [[fNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -924,8 +956,8 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('v1', [[v1Node1], [v1Node1]]);
-      variables.set('arguments', [NO_DECLARATIONS, [argumentsNode1]]);
+      variables.set('v1', [[v1Node1], [v1Node1], NO_PROPERTIES]);
+      variables.set('arguments', [NO_DECLARATIONS, [argumentsNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(v1Node1, Accessibility.WRITE);
@@ -957,11 +989,11 @@ suite('unit', () => {
       let through = ['Math', 'cos', 'PI', 'f'];
 
       let variables = new Map;
-      variables.set('Math', [NO_DECLARATIONS, [mathNode1]]);
-      variables.set('cos', [NO_DECLARATIONS, [cosNode1]]);
-      variables.set('PI', [NO_DECLARATIONS, [piNode1]]);
-      variables.set('f', [NO_DECLARATIONS, [fNode1]]);
-      variables.set('x', [[xNode1], [xNode1, xNode2]]);
+      variables.set('Math', [NO_DECLARATIONS, [mathNode1], NO_PROPERTIES]);
+      variables.set('cos', [NO_DECLARATIONS, [cosNode1], NO_PROPERTIES]);
+      variables.set('PI', [NO_DECLARATIONS, [piNode1], NO_PROPERTIES]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1], NO_PROPERTIES]);
+      variables.set('x', [[xNode1], [xNode1, xNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(mathNode1, Accessibility.READ);
@@ -1010,27 +1042,67 @@ suite('unit', () => {
     let oNode1 = script.statements[0].declaration.declarators[0].binding;
     let oNode2 = script.statements[1].object.object.object;
     let fNode1 = script.statements[1].body.block.statements[0].expression.callee;
-    let p1Node1 = script.statements[1].body.block.statements[0].expression.arguments[0];
+    let p1Node1 = script.statements[0].declaration.declarators[0].init.properties[0].expression.properties[0].expression.properties[0].name;
+    let p1Node2 = script.statements[1].body.block.statements[0].expression.arguments[0];
     let fNode2 = script.statements[1].body.block.statements[1].expression.callee;
-    let p2Node1 = script.statements[1].body.block.statements[1].expression.arguments[0];
+    let p2Node1 = script.statements[0].declaration.declarators[0].init.properties[0].expression.properties[0].expression.properties[1].name;
+    let p2Node2 = script.statements[1].body.block.statements[1].expression.arguments[0];
+    let aNode1 = script.statements[0].declaration.declarators[0].init.properties[0].name;
+    let aNode2 = script.statements[1].object.object;
+    let bNode1 = script.statements[0].declaration.declarators[0].init.properties[0].expression.properties[0].name;
+    let bNode2 = script.statements[1].object;
 
     { // global scope
       let children = [scriptScope];
       let through = ['f', 'p1', 'p2'];
 
+      let bProperties = new Map;
+      bProperties.set('p1', {
+        name: 'p1',
+        references: [p1Node1], // TODO p1Node2
+        properties: new Map,
+      });
+      bProperties.set('p2', {
+        name: 'p2',
+        references: [p2Node1], // TODO p2Node2
+        properties: new Map,
+      });
+
+      let aProperties = new Map;
+      aProperties.set('b', {
+        name: 'b',
+        references: [bNode1, bNode2],
+        properties: bProperties,
+      });
+
+      let oProperties = new Map;
+      oProperties.set('a', {
+        name: 'a',
+        references: [aNode1, aNode2],
+        properties: aProperties,
+      });
+
       let variables = new Map;
-      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2]]);
-      variables.set('p1', [NO_DECLARATIONS, [p1Node1]]);
-      variables.set('p2', [NO_DECLARATIONS, [p2Node1]]);
-      variables.set('o', [[oNode1], [oNode1, oNode2]]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2], NO_PROPERTIES]);
+      variables.set('p1', [NO_DECLARATIONS, [p1Node2], NO_PROPERTIES]);
+      variables.set('p2', [NO_DECLARATIONS, [p2Node2], NO_PROPERTIES]);
+      variables.set('o', [[oNode1], [oNode1, oNode2], oProperties]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode1, Accessibility.READ);
       referenceTypes.set(fNode2, Accessibility.READ);
-      referenceTypes.set(p1Node1, Accessibility.READ);
-      referenceTypes.set(p2Node1, Accessibility.READ);
+      referenceTypes.set(p1Node2, Accessibility.READ);
+      referenceTypes.set(p2Node2, Accessibility.READ);
       referenceTypes.set(oNode1, Accessibility.WRITE);
       referenceTypes.set(oNode2, Accessibility.READ);
+      referenceTypes.set(p1Node1, Accessibility.WRITE);
+      // TODO p1Node2
+      referenceTypes.set(p2Node1, Accessibility.WRITE);
+      // TODO p2Node2
+      referenceTypes.set(bNode1, Accessibility.WRITE);
+      referenceTypes.set(bNode2, Accessibility.READ);
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(aNode2, Accessibility.READ);
 
       checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
     }
@@ -1071,7 +1143,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2]]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode1, Accessibility.READ);
@@ -1084,7 +1156,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('err', [[errNode1], [errNode2]]);
+      variables.set('err', [[errNode1], [errNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(errNode2, Accessibility.READ);
@@ -1130,7 +1202,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2, fNode3]]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1, fNode2, fNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode1, Accessibility.READ);
@@ -1144,7 +1216,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('err1', [[err1Node1], [err1Node2, err1Node3]]);
+      variables.set('err1', [[err1Node1], [err1Node2, err1Node3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(err1Node2, Accessibility.READ);
@@ -1157,7 +1229,7 @@ suite('unit', () => {
       let through = ['f', 'err1'];
 
       let variables = new Map;
-      variables.set('err2', [[err2Node1], [err2Node2]]);
+      variables.set('err2', [[err2Node1], [err2Node2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(err2Node2, Accessibility.READ);
@@ -1190,8 +1262,8 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('err', [[errNode2], NO_REFERENCES]);
-      variables.set('f', [NO_DECLARATIONS, [fNode1]]);
+      variables.set('err', [[errNode2], NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode1, Accessibility.READ);
@@ -1203,7 +1275,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('err', [[errNode1], [errNode2]]);
+      variables.set('err', [[errNode1], [errNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(errNode2, Accessibility.WRITE);
@@ -1259,7 +1331,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('e', [[eNode1], [eNode2]]);
+      variables.set('e', [[eNode1], [eNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(eNode2, Accessibility.READ);
@@ -1271,7 +1343,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('f', [[fNode1], [fNode2]]);
+      variables.set('f', [[fNode1], [fNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(fNode2, Accessibility.READ);
@@ -1283,7 +1355,7 @@ suite('unit', () => {
       let through = ['f'];
 
       let variables = new Map;
-      variables.set('a', [[aNode1], NO_REFERENCES]);
+      variables.set('a', [[aNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -1294,7 +1366,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('g', [[gNode1], [gNode2]]);
+      variables.set('g', [[gNode1], [gNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(gNode2, Accessibility.READ);
@@ -1351,9 +1423,9 @@ suite('unit', () => {
       let through = ['a', 'b', 'c'];
 
       let variables = new Map;
-      variables.set('a', [NO_DECLARATIONS, [aNode2]]);
-      variables.set('b', [NO_DECLARATIONS, [bNode2]]);
-      variables.set('c', [NO_DECLARATIONS, [cNode2]]);
+      variables.set('a', [NO_DECLARATIONS, [aNode2], NO_PROPERTIES]);
+      variables.set('b', [NO_DECLARATIONS, [bNode2], NO_PROPERTIES]);
+      variables.set('c', [NO_DECLARATIONS, [cNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(aNode2, Accessibility.READ);
@@ -1367,7 +1439,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('a', [[aNode1], [aNode1, aNode3]]);
+      variables.set('a', [[aNode1], [aNode1, aNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(aNode1, Accessibility.WRITE);
@@ -1380,7 +1452,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('b', [[bNode1], [bNode1, bNode3]]);
+      variables.set('b', [[bNode1], [bNode1, bNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(bNode1, Accessibility.WRITE);
@@ -1393,7 +1465,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('c', [[cNode1], [cNode1]]);
+      variables.set('c', [[cNode1], [cNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(cNode1, Accessibility.WRITE);
@@ -1405,7 +1477,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('c', [[cNode3], [cNode4]]);
+      variables.set('c', [[cNode3], [cNode4], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(cNode4, Accessibility.READ);
@@ -1454,12 +1526,12 @@ suite('unit', () => {
       let through = ['d', 'e', 'f', 'g', 'h', 'i'];
 
       let variables = new Map;
-      variables.set('d', [NO_DECLARATIONS, [dNode]]);
-      variables.set('e', [NO_DECLARATIONS, [eNode]]);
-      variables.set('f', [NO_DECLARATIONS, [fNode]]);
-      variables.set('g', [NO_DECLARATIONS, [gNode]]);
-      variables.set('h', [NO_DECLARATIONS, [hNode]]);
-      variables.set('i', [NO_DECLARATIONS, [iNode]]);
+      variables.set('d', [NO_DECLARATIONS, [dNode], NO_PROPERTIES]);
+      variables.set('e', [NO_DECLARATIONS, [eNode], NO_PROPERTIES]);
+      variables.set('f', [NO_DECLARATIONS, [fNode], NO_PROPERTIES]);
+      variables.set('g', [NO_DECLARATIONS, [gNode], NO_PROPERTIES]);
+      variables.set('h', [NO_DECLARATIONS, [hNode], NO_PROPERTIES]);
+      variables.set('i', [NO_DECLARATIONS, [iNode], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(dNode, Accessibility.READ);
@@ -1476,7 +1548,7 @@ suite('unit', () => {
       let through = ['d', 'e'];
 
       let variables = new Map;
-      variables.set('a', [[aNode1], [aNode2]]);
+      variables.set('a', [[aNode1], [aNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(aNode2, Accessibility.READ);
@@ -1488,7 +1560,7 @@ suite('unit', () => {
       let through = ['f', 'g'];
 
       let variables = new Map;
-      variables.set('b', [[bNode1], [bNode2]]);
+      variables.set('b', [[bNode1], [bNode2], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(bNode2, Accessibility.READ);
@@ -1500,7 +1572,7 @@ suite('unit', () => {
       let through = ['h', 'i'];
 
       let variables = new Map;
-      variables.set('c', [[cNode1], NO_REFERENCES]);
+      variables.set('c', [[cNode1], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -1511,7 +1583,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('c', [[cNode2], [cNode3]]);
+      variables.set('c', [[cNode2], [cNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(cNode3, Accessibility.READ);
@@ -1549,9 +1621,9 @@ suite('unit', () => {
       let through = ['eval', 's'];
 
       let variables = new Map;
-      variables.set('eval', [NO_DECLARATIONS, [evalNode1, evalNode2]]);
-      variables.set('s', [NO_DECLARATIONS, [sNode1, sNode2]]);
-      variables.set('f', [[fNode], NO_REFERENCES]);
+      variables.set('eval', [NO_DECLARATIONS, [evalNode1, evalNode2], NO_PROPERTIES]);
+      variables.set('s', [NO_DECLARATIONS, [sNode1, sNode2], NO_PROPERTIES]);
+      variables.set('f', [[fNode], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(evalNode1, Accessibility.READ);
@@ -1566,8 +1638,8 @@ suite('unit', () => {
       let through = ['eval', 's'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
-      variables.set('g', [[gNode], NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
+      variables.set('g', [[gNode], NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -1578,7 +1650,7 @@ suite('unit', () => {
       let through = ['eval', 's'];
 
       let variables = new Map;
-      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES]);
+      variables.set('arguments', [NO_DECLARATIONS, NO_REFERENCES, NO_PROPERTIES]);
 
       let referenceTypes = new Map;
 
@@ -1605,7 +1677,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('x', [[xNode1], [xNode1]]);
+      variables.set('x', [[xNode1], [xNode1], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(xNode1, Accessibility.WRITE);
@@ -1617,7 +1689,7 @@ suite('unit', () => {
       let through = [];
 
       let variables = new Map;
-      variables.set('x', [[xNode2], [xNode3]]);
+      variables.set('x', [[xNode2], [xNode3], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
       referenceTypes.set(xNode3, Accessibility.READWRITE);
