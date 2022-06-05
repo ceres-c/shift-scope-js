@@ -97,6 +97,10 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     // [a, b, ...rest] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3];   // `rest` does not accept properties
   }
 
+  // TODO all bindings
+  // TODO reduceArrayBinding like reduceArrayAssignmentTarget above
+  // TODO everything with bindingsForParent in scope-state
+
   reduceArrayExpression(node, { elements }) {
     let s = this.fold(elements);
     s.prpForParent = elements.reduce((acc, state) =>
@@ -486,6 +490,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceUnaryExpression(node, { operand }) {
     if (node.operator === 'delete' && node.operand.type === 'IdentifierExpression') {
+      // TODO handle properties deletion
       // 'delete x' is a special case.
       return new ScopeState({
         freeIdentifiers: new Map([
@@ -514,7 +519,9 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceVariableDeclarationStatement(node, { declaration }) {
-    return declaration.withoutBindingsForParent();
+    return declaration
+      .mergeDataProperties()
+      .withoutBindingsForParent();
   }
 
   reduceVariableDeclarator(node, { binding, init }) {
@@ -526,6 +533,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceWithStatement(node, { object, body }) {
+    // TODO fix cases such as WithStatement 2 from unit tests
     return super.reduceWithStatement(node, { object, body: body.finish(node, ScopeType.WITH) });
   }
 }

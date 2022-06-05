@@ -295,9 +295,9 @@ export default class ScopeState {
     const zipRest = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
 
     function recursiveCore(targets, sources) {
-
-      debugger;
-
+      if (targets.length === 0) {
+        return;
+      }
       if (Array.isArray(targets[targets.length - 1])) {
         // Workaround for destructuring assignments yielding unbalanced trees
         // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
@@ -354,15 +354,14 @@ export default class ScopeState {
       }
     }
 
-    if (this.atsForParent.length == 0) {
+    if (this.atsForParent.length == 0 && this.bindingsForParent.length == 0) {
       return this;
     }
 
-    debugger;
-
     let s = new ScopeState(this);
     recursiveCore(s.atsForParent, s.prpForParent);
-    if (s.isArrayAT) {
+    recursiveCore(s.bindingsForParent, s.prpForParent);
+    if (s.isArrayAT) { // TODO s.isArrayBinding
       // e.g. a = [b] = [{x: 1}]
       s.prpForParent = [];
     } // e.g. a = b = {x: 1}
