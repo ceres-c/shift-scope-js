@@ -289,17 +289,51 @@ export default class ScopeState {
     return s;
   }
 
+  // Side effect: will delete all prpForParent, when this.isArrayAT === true
   mergeDataProperties() {
     const zipStd = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
-    const zipRest   = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
+    const zipRest = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
 
     function recursiveCore(targets, sources) {
+
+      debugger;
+
+      if (Array.isArray(targets[targets.length - 1])) {
+        // Workaround for destructuring assignments yielding unbalanced trees
+        // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
+
+        // TODO broken. With assignments such as `[a, ...[rest, [rest2]]] = [{x: 1}, {y: 2}, {z: 3}]`
+        // rest2 will be given a property `w` which it should not have (BTW this js is illegal at runtime)
+        let src = [];
+        src.push(...sources.slice(0, targets.length-1));
+        src.push(sources.slice(targets.length-1, targets.length-1 + targets[targets.length-1].length));
+        sources = src;
+      }
+
+      // TODO remove
+      // let zip;
+      // if (targets[targets.length - 1].isRest) {
+      //   // e.g. `[a, ...rest] = [{x: 1}, {y: 2}, {z: 3}]`
+      //   zip = zipRest;
+      // } else if (Array.isArray(targets[targets.length - 1])) {
+      //   // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
+      //   // TODO solve this somehow
+      // } else {
+      //   zip = zipStd;
+      // }
+
       let zip = targets[targets.length - 1].isRest ? zipRest : zipStd;
 
       for (let [binding, prop] of zip(targets, sources)) {
         if (Array.isArray(binding)) {
-          recursiveCore(binding, Array.isArray(prop) ? prop : [prop]);
-          // Wrap in array as a workaround for destructuring assignment e.g. `[a, ...[rest]] = [{y: 2}, {z: 3}, {w: 4}]`
+          // TODO remove
+          // if (!Array.isArray(prop)) {
+          //   // Wrap prop in array as a workaround for destructuring assignments yielding unbalanced trees
+          //   // e.g. `[a, ...[rest]] = [{y: 2}, {z: 3}, {w: 4}]`
+          //   prop = [prop] // TODO increase number of props
+          // }
+          // recursiveCore(binding, Array.isArray(prop) ? prop : [prop]);
+          recursiveCore(binding, prop);
         } else {
           if (!binding.acceptProperties || Array.isArray(prop)) {
           //   ^                           ^
@@ -323,6 +357,8 @@ export default class ScopeState {
     if (this.atsForParent.length == 0) {
       return this;
     }
+
+    debugger;
 
     let s = new ScopeState(this);
     recursiveCore(s.atsForParent, s.prpForParent);

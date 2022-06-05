@@ -77,7 +77,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (rest !== null) {
       let r = new ScopeState(rest);
       if (!r.isArrayAT) {
-        // Rest can't accept properties, unless it is an ArrayAssignmentTarget
+        // Rest can't accept properties, unless it is an ArrayAssignmentTarget itself
         r = r.setRest().rejectProperties();
       }
       scopes = [...elements, r]; // Leave rest as last element
@@ -403,7 +403,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceObjectAssignmentTarget(node, { properties, rest }) {
     // TESTS `({a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40})`
     if (rest) {
-      return this.fold([...properties, new ScopeState(rest).setRest()], new ScopeState({isObjectAT: true}));
+      return this.fold([...properties, rest.setRest()], new ScopeState({isObjectAT: true}));
       // rest can't be used as an init value because that would modify the order of parameters
     } else {
       return this.fold(properties, new ScopeState({isObjectAT: true}));
@@ -424,12 +424,13 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceShorthandProperty(node, { name }) {
+    let [nodeName, _] = [...name.freeIdentifiers][0]
     return super
       .reduceShorthandProperty(node, { name })
       .concat(new ScopeState({
         dataProperties: new Map().set(
-          node.name,
-          new Property({ name: node.name, references: [ new Reference(node, Accessibility.WRITE) ], })
+          nodeName,
+          new Property({ name: nodeName, references: [ new Reference(node, Accessibility.WRITE) ], })
         )
       }));
   }
