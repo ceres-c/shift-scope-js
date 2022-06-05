@@ -20,7 +20,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, Property, Variable } from './variable';
+import { Binding, BindingArray, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -85,11 +85,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       scopes = elements;
     }
     let s = this.fold(scopes);
-    s.atsForParent = scopes.reduce(
+    s.atsForParent = new BindingArray({bindings: scopes.reduce(
       (acc, state) => state.isArrayAT ? (acc.push(state.atsForParent), acc) : acc.concat(state.atsForParent),
       // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
-      []
-    );
+      new BindingArray
+    )});
     s.isArrayAT = true;
     return s;
     // TESTS
@@ -123,11 +123,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentTargetIdentifier(node) {
-    return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
+    return new ScopeState({ atsForParent: new BindingArray({bindings: [new Binding({name: node.name, path: node.name, node: node})] }) });
   }
 
   reduceAssignmentTargetPropertyIdentifier(node, { binding, init }) {
-    let bName = binding.atsForParent[0].name;
+    let bName = binding.atsForParent.get(0).name;
     if (init) {
       let i = new ScopeState({
         freeIdentifiers: new Map([ [bName, new Variable({name: bName})] ])
@@ -145,7 +145,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (node.name === '*default*') {
       return new ScopeState;
     }
-    return new ScopeState({ bindingsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
+    return new ScopeState({ bindingsForParent: new BindingArray({ bindings: [new Binding({name: node.name, path: node.name, node: node})] }) });
   }
 
   reduceBindingPropertyIdentifier(node, { binding, init }) {

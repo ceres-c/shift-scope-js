@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Variable, Property } from './variable';
+import { BindingArray, Property, Variable } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -57,8 +57,8 @@ export default class ScopeState {
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
       children = [],
       dynamic = false,
-      bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
-      atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
+      bindingsForParent = new BindingArray, // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
+      atsForParent = new BindingArray, // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
       lastBinding = null, // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
@@ -115,8 +115,8 @@ export default class ScopeState {
       ),
       children: this.children.concat(b.children),
       dynamic: this.dynamic || b.dynamic,
-      bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
-      atsForParent: this.atsForParent.concat(b.atsForParent),
+      bindingsForParent: this.bindingsForParent.merge(b.bindingsForParent),
+      atsForParent: this.atsForParent.merge(b.atsForParent),
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -196,8 +196,8 @@ export default class ScopeState {
       s.functionScopedDeclarations = declMap;
     }
     if (!keepBindingsForParent) {
-      s.bindingsForParent = [];
-      s.atsForParent = [];
+      s.bindingsForParent = new BindingArray;
+      s.atsForParent = new BindingArray;
     }
     return s;
   }
@@ -206,7 +206,7 @@ export default class ScopeState {
     if (this.bindingsForParent.length === 0) {
       return this; // i.e., this function declaration is `export default function () {...}`
     }
-    const binding = this.bindingsForParent[0];
+    const binding = this.bindingsForParent.get(0);
     let s = new ScopeState(this);
     merge(
       s.functionDeclarations,
@@ -214,7 +214,7 @@ export default class ScopeState {
         [binding.name, new Declaration(binding.node, DeclarationType.FUNCTION_DECLARATION)],
       ]),
     );
-    s.bindingsForParent = [];
+    s.bindingsForParent = new BindingArray;
     return s;
   }
 
@@ -240,8 +240,8 @@ export default class ScopeState {
       }
     });
     if (!keepBindingsForParent) {
-      s.bindingsForParent = [];
-      s.atsForParent = [];
+      s.bindingsForParent = new BindingArray;
+      s.atsForParent = new BindingArray;
     }
     return s;
   }
@@ -265,13 +265,13 @@ export default class ScopeState {
 
   setRest() {
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.setRest());
+    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.setRest())});
     return s;
   }
 
   rejectProperties() {
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.rejectProperties());
+    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.isArray ? b : b.rejectProperties())});
     return s;
   }
 
@@ -298,41 +298,20 @@ export default class ScopeState {
 
       debugger;
 
-      if (Array.isArray(targets[targets.length - 1])) {
+      if (targets.get(targets.length - 1).isRest && targets.get(targets.length - 1).isArray) {
         // Workaround for destructuring assignments yielding unbalanced trees
         // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
 
-        // TODO broken. With assignments such as `[a, ...[rest, [rest2]]] = [{x: 1}, {y: 2}, {z: 3}]`
-        // rest2 will be given a property `w` which it should not have (BTW this js is illegal at runtime)
         let src = [];
         src.push(...sources.slice(0, targets.length-1));
         src.push(sources.slice(targets.length-1, targets.length-1 + targets[targets.length-1].length));
         sources = src;
       }
 
-      // TODO remove
-      // let zip;
-      // if (targets[targets.length - 1].isRest) {
-      //   // e.g. `[a, ...rest] = [{x: 1}, {y: 2}, {z: 3}]`
-      //   zip = zipRest;
-      // } else if (Array.isArray(targets[targets.length - 1])) {
-      //   // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
-      //   // TODO solve this somehow
-      // } else {
-      //   zip = zipStd;
-      // }
+      let zip = targets.get(targets.length - 1).isRest ? zipRest : zipStd;
 
-      let zip = targets[targets.length - 1].isRest ? zipRest : zipStd;
-
-      for (let [binding, prop] of zip(targets, sources)) {
-        if (Array.isArray(binding)) {
-          // TODO remove
-          // if (!Array.isArray(prop)) {
-          //   // Wrap prop in array as a workaround for destructuring assignments yielding unbalanced trees
-          //   // e.g. `[a, ...[rest]] = [{y: 2}, {z: 3}, {w: 4}]`
-          //   prop = [prop] // TODO increase number of props
-          // }
-          // recursiveCore(binding, Array.isArray(prop) ? prop : [prop]);
+      for (let [binding, prop] of zip(targets.bindings, sources)) {
+        if (binding.isArray) {
           recursiveCore(binding, prop);
         } else {
           if (!binding.acceptProperties || Array.isArray(prop)) {
@@ -370,7 +349,7 @@ export default class ScopeState {
   }
 
   // Side effect: will delete all atsForParent, when this.isObjectAT === true
-  mergeObjectAssignment() {
+  mergeObjectAssignment() { // TODO modify this function to work with BindingArray
     function addProperties(binding, properties) { // properties is a Map
       let path = binding.path;
       let current = s.getNodeFromPath(path);
@@ -403,7 +382,7 @@ export default class ScopeState {
       addProperties(ats[ats.length - 1], remainingProperties);
     }
     s.isObjectAT = false;
-    s.atsForParent = [];
+    s.atsForParent = new BindingArray;
     return s;
   }
 
@@ -415,13 +394,13 @@ export default class ScopeState {
 
   withoutBindingsForParent() {
     let s = new ScopeState(this);
-    s.bindingsForParent = [];
+    s.bindingsForParent = new BindingArray;
     return s;
   }
 
   withoutAtsForParent() {
     let s = new ScopeState(this);
-    s.atsForParent = [];
+    s.atsForParent = new BindingArray;
     return s;
   }
 
