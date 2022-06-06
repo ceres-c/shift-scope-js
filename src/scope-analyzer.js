@@ -528,6 +528,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     const s = super.reduceVariableDeclarator(node, { binding, init });
     if (init) {
       return s.addReferences(Accessibility.WRITE, true);
+      // TODO merge DataProperties with ObjectBindings as is done in reduceAssignmentTargetPropertyIdentifier
+      // e.g. `var {a: {b: c}} = {a: {b: {c: 5}}};` => c.c = 5
     }
     return s;
   }
