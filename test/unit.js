@@ -45,7 +45,7 @@ function checkProps(actualProperties, expected, referenceTypes) {
       assert.equal(ref.accessibility, type);
     });
 
-    if (propertyEntryValue.properties) {
+    if (propertyEntryValue.properties.size) {
       checkProps(property.properties, propertyEntryValue.properties, referenceTypes);
     }
   });
@@ -1191,6 +1191,7 @@ suite('unit', () => {
     let fNode1 = script.statements[0].body.statements[0].expression.callee;
     let err1Node1 = script.statements[0].catchClause.binding;
     let err1Node2 = script.statements[0].catchClause.body.statements[0].body.statements[0].expression.object;
+    let err1MessageNode1 = script.statements[0].catchClause.body.statements[0].body.statements[0].expression;
     let err2Node1 = script.statements[0].catchClause.body.statements[0].catchClause.binding;
     let fNode2 = script.statements[0].catchClause.body.statements[0].catchClause.body.statements[0].expression.callee;
     let err1Node3 = script.statements[0].catchClause.body.statements[0].catchClause.body.statements[0].expression.arguments[0];
@@ -1215,12 +1216,20 @@ suite('unit', () => {
       let children = [catchBlockScope1];
       let through = ['f'];
 
+      let errProperties = new Map;
+      errProperties.set('message', {
+        name: 'message',
+        references: [err1MessageNode1],
+        properties: new Map,
+      });
+
       let variables = new Map;
-      variables.set('err1', [[err1Node1], [err1Node2, err1Node3], NO_PROPERTIES]);
+      variables.set('err1', [[err1Node1], [err1Node2, err1Node3], errProperties]);
 
       let referenceTypes = new Map;
       referenceTypes.set(err1Node2, Accessibility.READ);
       referenceTypes.set(err1Node3, Accessibility.READ);
+      referenceTypes.set(err1MessageNode1, Accessibility.READ);
 
       checkScope(catchScope1, catchScope1Node, ScopeType.CATCH, false, children, through, variables, referenceTypes);
     }
