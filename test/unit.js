@@ -2840,4 +2840,105 @@ suite('unit', () => {
       { asScript: false }
     );
   });
+
+  test('Property 1', () => {
+    const js = 'var a; a.b; a.c = 1;';
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let aNode1 = script.statements[0].declaration.declarators[0].binding;
+    let aNode2 = script.statements[1].expression.object;
+    let bNode1 = script.statements[1].expression;
+    let aNode3 = script.statements[2].expression.binding.object;
+    let cNode1 = script.statements[2].expression.binding;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = [];
+
+      let aProperties = new Map;
+      aProperties.set('b', {
+        name: 'b',
+        references: [bNode1],
+        properties: new Map,
+      });
+      aProperties.set('c', {
+        name: 'c',
+        references: [cNode1],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('a', [[aNode1], [aNode2, aNode3], aProperties]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(aNode2, Accessibility.READ);
+      referenceTypes.set(aNode3, Accessibility.READ);
+      referenceTypes.set(bNode1, Accessibility.READ);
+      referenceTypes.set(cNode1, Accessibility.WRITE);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('Property 2', () => {
+    const js = 'var obj1 = {a: 1}; obj2 = {b: 2, c: {d: 3}};';
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let obj1Node1 = script.statements[0].declaration.declarators[0].binding;
+    let obj2Node1 = script.statements[1].expression.binding;
+    let aNode1 = script.statements[0].declaration.declarators[0].init.properties[0].name;
+    let bNode1 = script.statements[1].expression.expression.properties[0].name;
+    let cNode1 = script.statements[1].expression.expression.properties[1].name;
+    let dNode1 = script.statements[1].expression.expression.properties[1].expression.properties[0].name;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['obj2'];
+
+      let cProperties = new Map;
+      cProperties.set('d', {
+        name: 'd',
+        references: [dNode1],
+        properties: new Map,
+      });
+
+      let obj1Properties = new Map;
+      obj1Properties.set('a', {
+        name: 'a',
+        references: [aNode1],
+        properties: new Map,
+      });
+      let obj2Properties = new Map;
+      obj2Properties.set('b', {
+        name: 'b',
+        references: [bNode1],
+        properties: new Map,
+      });
+      obj2Properties.set('c', {
+        name: 'c',
+        references: [cNode1],
+        properties: cProperties,
+      });
+
+      let variables = new Map;
+      variables.set('obj1', [[obj1Node1], [obj1Node1], obj1Properties]);
+      variables.set('obj2', [NO_DECLARATIONS, [obj2Node1], obj2Properties]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(obj1Node1, Accessibility.WRITE);
+      referenceTypes.set(obj2Node1, Accessibility.WRITE);
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(bNode1, Accessibility.WRITE);
+      referenceTypes.set(cNode1, Accessibility.WRITE);
+      referenceTypes.set(dNode1, Accessibility.WRITE);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
 });

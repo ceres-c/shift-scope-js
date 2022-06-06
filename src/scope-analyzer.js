@@ -99,6 +99,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   // TODO all bindings
   // TODO reduceArrayBinding like reduceArrayAssignmentTarget above
+  // TODO reduceObjectBindings like reduceObjectAssignmentTarget above
   // TODO everything with bindingsForParent in scope-state
 
   reduceArrayExpression(node, { elements }) {
