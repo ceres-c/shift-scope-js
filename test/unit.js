@@ -2884,6 +2884,68 @@ suite('unit', () => {
   });
 
   test('Property 2', () => {
+    const js = `var a, b; a['x']; a['y'] = 1; a[call()]; b = []; b[0]; b[1] = 1;`;
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let aNode1 = script.statements[0].declaration.declarators[0].binding;
+    let aNode2 = script.statements[1].expression.object;
+    let aNode3 = script.statements[2].expression.binding.object;
+    let aNode4 = script.statements[3].expression.object;
+    let bNode1 = script.statements[0].declaration.declarators[1].binding;
+    let bNode2 = script.statements[4].expression.binding;
+    let bNode3 = script.statements[5].expression.object;
+    let bNode4 = script.statements[6].expression.binding.object;
+    let xNode1 = script.statements[1].expression;
+    let yNode1 = script.statements[2].expression.binding;
+    let dynamicNode = script.statements[3].expression;
+    let callee = script.statements[3].expression.expression.callee;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['call'];
+
+      let aProperties = new Map;
+      aProperties.set('x', {
+        name: 'x',
+        references: [xNode1],
+        properties: new Map,
+      });
+      aProperties.set('y', {
+        name: 'y',
+        references: [yNode1],
+        properties: new Map,
+      });
+      aProperties.set('*dynamic*', {
+        name: '*dynamic*',
+        references: [dynamicNode],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('a', [[aNode1], [aNode2, aNode3, aNode4], aProperties]);
+      variables.set('b', [[bNode1], [bNode2, bNode3, bNode4], NO_PROPERTIES]);
+      variables.set('call', [NO_DECLARATIONS, [callee], NO_PROPERTIES]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(aNode2, Accessibility.READ);
+      referenceTypes.set(aNode3, Accessibility.READ);
+      referenceTypes.set(aNode4, Accessibility.READ);
+      referenceTypes.set(bNode2, Accessibility.WRITE);
+      referenceTypes.set(bNode3, Accessibility.READ);
+      referenceTypes.set(bNode4, Accessibility.READ);
+      referenceTypes.set(xNode1, Accessibility.READ);
+      referenceTypes.set(yNode1, Accessibility.WRITE);
+      referenceTypes.set(dynamicNode, Accessibility.READ);
+      referenceTypes.set(callee, Accessibility.READ);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('Property 3', () => {
     const js = 'var obj1 = {a: 1}; obj2 = {b: 2, c: {d: 3}};';
     let script = parseScript(js);
 
@@ -2941,4 +3003,231 @@ suite('unit', () => {
       checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
     }
   });
+
+  test('Property 4', () => {
+    const js = 'var [a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];';
+    // TODO this tests currently fails: arrayBinding is broken in analyzer
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let decl = script.statements[0].declaration.declarators[0];
+    let aNode1 = decl.binding.elements[0];
+    let bNode1 = decl.binding.elements[1].elements[0];
+    let cNode1 = decl.binding.elements[1].elements[1];
+    let restNode1 = decl.binding.rest;
+    let xNode1 = decl.init.elements[0].properties[0].name;
+    let yNode1 = decl.init.elements[1].elements[0].properties[0].name;
+    let zNode1 = decl.init.elements[1].elements[1].properties[0].name;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = [];
+
+      let aProperties = new Map;
+      aProperties.set('x', {
+        name: 'x',
+        references: [xNode1],
+        properties: new Map,
+      });
+      let bProperties = new Map;
+      bProperties.set('y', {
+        name: 'y',
+        references: [yNode1],
+        properties: new Map,
+      });
+      let cProperties = new Map;
+      cProperties.set('z', {
+        name: 'z',
+        references: [zNode1],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('a', [[aNode1], [aNode1], aProperties]);
+      variables.set('b', [[bNode1], [bNode1], bProperties]);
+      variables.set('c', [[cNode1], [cNode1], cProperties]);
+      variables.set('rest', [[restNode1], [restNode1], NO_PROPERTIES]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(bNode1, Accessibility.WRITE);
+      referenceTypes.set(cNode1, Accessibility.WRITE);
+      referenceTypes.set(restNode1, Accessibility.WRITE);
+      referenceTypes.set(xNode1, Accessibility.WRITE);
+      referenceTypes.set(yNode1, Accessibility.WRITE);
+      referenceTypes.set(zNode1, Accessibility.WRITE);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('Property 5', () => {
+    const js = `
+      [a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];
+      [d, [e, f], ...[rest2]] = [{u: 1}, [{v: 2}, {t: 3}], {s: 4}, {l: 5}];
+    `;
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let assignment1 = script.statements[0].expression;
+    let aNode1 = assignment1.binding.elements[0];
+    let bNode1 = assignment1.binding.elements[1].elements[0];
+    let cNode1 = assignment1.binding.elements[1].elements[1];
+    let restNode1 = assignment1.binding.rest;
+    let xNode1 = assignment1.expression.elements[0].properties[0].name;
+    let yNode1 = assignment1.expression.elements[1].elements[0].properties[0].name;
+    let zNode1 = assignment1.expression.elements[1].elements[1].properties[0].name;
+
+    let assignment2 = script.statements[1].expression;
+    let dNode1 = assignment2.binding.elements[0];
+    let eNode1 = assignment2.binding.elements[1].elements[0];
+    let fNode1 = assignment2.binding.elements[1].elements[1];
+    let rest2Node1 = assignment2.binding.rest.elements[0];
+    let uNode1 = assignment2.expression.elements[0].properties[0].name;
+    let vNode1 = assignment2.expression.elements[1].elements[0].properties[0].name;
+    let tNode1 = assignment2.expression.elements[1].elements[1].properties[0].name;
+    let sNode1 = assignment2.expression.elements[2].properties[0].name;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['a', 'b', 'c', 'rest', 'd', 'e', 'f', 'rest2'];
+
+      let aProperties = new Map;
+      aProperties.set('x', {
+        name: 'x',
+        references: [xNode1],
+        properties: new Map,
+      });
+      let bProperties = new Map;
+      bProperties.set('y', {
+        name: 'y',
+        references: [yNode1],
+        properties: new Map,
+      });
+      let cProperties = new Map;
+      cProperties.set('z', {
+        name: 'z',
+        references: [zNode1],
+        properties: new Map,
+      });
+
+      let dProperties = new Map;
+      dProperties.set('u', {
+        name: 'u',
+        references: [uNode1],
+        properties: new Map,
+      })
+      let eProperties = new Map;
+      eProperties.set('v', {
+        name: 'v',
+        references: [vNode1],
+        properties: new Map,
+      });
+      let fProperties = new Map;
+      fProperties.set('t', {
+        name: 't',
+        references: [tNode1],
+        properties: new Map,
+      });
+      let rest2Properties = new Map;
+      rest2Properties.set('s', {
+        name: 's',
+        references: [sNode1],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('a', [NO_DECLARATIONS, [aNode1], aProperties]);
+      variables.set('b', [NO_DECLARATIONS, [bNode1], bProperties]);
+      variables.set('c', [NO_DECLARATIONS, [cNode1], cProperties]);
+      variables.set('rest', [NO_DECLARATIONS, [restNode1], NO_PROPERTIES]);
+      variables.set('d', [NO_DECLARATIONS, [dNode1], dProperties]);
+      variables.set('e', [NO_DECLARATIONS, [eNode1], eProperties]);
+      variables.set('f', [NO_DECLARATIONS, [fNode1], fProperties]);
+      variables.set('rest2', [NO_DECLARATIONS, [rest2Node1], rest2Properties]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(bNode1, Accessibility.WRITE);
+      referenceTypes.set(cNode1, Accessibility.WRITE);
+      referenceTypes.set(restNode1, Accessibility.WRITE);
+      referenceTypes.set(xNode1, Accessibility.WRITE);
+      referenceTypes.set(yNode1, Accessibility.WRITE);
+      referenceTypes.set(zNode1, Accessibility.WRITE);
+      referenceTypes.set(dNode1, Accessibility.WRITE);
+      referenceTypes.set(eNode1, Accessibility.WRITE);
+      referenceTypes.set(fNode1, Accessibility.WRITE);
+      referenceTypes.set(rest2Node1, Accessibility.WRITE);
+      referenceTypes.set(uNode1, Accessibility.WRITE);
+      referenceTypes.set(vNode1, Accessibility.WRITE);
+      referenceTypes.set(tNode1, Accessibility.WRITE);
+      referenceTypes.set(sNode1, Accessibility.WRITE);
+
+      debugger
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  // test('Property 6', () => {
+  //   const js = '[a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];';
+  //   let script = parseScript(js);
+
+  //   let globalScope = analyze(script);
+  //   let scriptScope = globalScope.children[0];
+
+  //   let assignment = script.statements[0].expression;
+  //   let aNode1 = assignment.binding.elements[0];
+  //   let bNode1 = assignment.binding.elements[1].elements[0];
+  //   let cNode1 = assignment.binding.elements[1].elements[1];
+  //   let restNode1 = assignment.binding.rest;
+  //   let xNode1 = assignment.expression.elements[0].properties[0].name;
+  //   let yNode1 = assignment.expression.elements[1].elements[0].properties[0].name;
+  //   let zNode1 = assignment.expression.elements[1].elements[1].properties[0].name;
+
+  //   { // global scope
+  //     let children = [scriptScope];
+  //     let through = ['a', 'b', 'c', 'rest'];
+
+  //     let aProperties = new Map;
+  //     aProperties.set('x', {
+  //       name: 'x',
+  //       references: [xNode1],
+  //       properties: new Map,
+  //     });
+  //     let bProperties = new Map;
+  //     bProperties.set('y', {
+  //       name: 'y',
+  //       references: [yNode1],
+  //       properties: new Map,
+  //     });
+  //     let cProperties = new Map;
+  //     cProperties.set('z', {
+  //       name: 'z',
+  //       references: [zNode1],
+  //       properties: new Map,
+  //     });
+
+  //     let variables = new Map;
+  //     variables.set('a', [NO_DECLARATIONS, [aNode1], aProperties]);
+  //     variables.set('b', [NO_DECLARATIONS, [bNode1], bProperties]);
+  //     variables.set('c', [NO_DECLARATIONS, [cNode1], cProperties]);
+  //     variables.set('rest', [NO_DECLARATIONS, [restNode1], NO_PROPERTIES]);
+
+  //     let referenceTypes = new Map;
+  //     referenceTypes.set(aNode1, Accessibility.WRITE);
+  //     referenceTypes.set(bNode1, Accessibility.WRITE);
+  //     referenceTypes.set(cNode1, Accessibility.WRITE);
+  //     referenceTypes.set(restNode1, Accessibility.WRITE);
+  //     referenceTypes.set(xNode1, Accessibility.WRITE);
+  //     referenceTypes.set(yNode1, Accessibility.WRITE);
+  //     referenceTypes.set(zNode1, Accessibility.WRITE);
+
+  //     checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+  //   }
+  // });
 });
