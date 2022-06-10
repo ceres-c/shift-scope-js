@@ -2841,7 +2841,7 @@ suite('unit', () => {
     );
   });
 
-  test('Property 1', () => {
+  test('Property static assignment', () => {
     const js = 'var a; a.b; a.c = 1;';
     let script = parseScript(js);
 
@@ -2883,7 +2883,7 @@ suite('unit', () => {
     }
   });
 
-  test('Property 2', () => {
+  test('Property computed assignment', () => {
     const js = `var a, b; a['x']; a['y'] = 1; a[call()]; b = []; b[0]; b[1] = 1;`;
     let script = parseScript(js);
 
@@ -2945,7 +2945,7 @@ suite('unit', () => {
     }
   });
 
-  test('Property 3', () => {
+  test('Property static dataproperties', () => {
     const js = 'var obj1 = {a: 1}; obj2 = {b: 2, c: {d: 3}};';
     let script = parseScript(js);
 
@@ -3004,7 +3004,91 @@ suite('unit', () => {
     }
   });
 
-  test('Property 4', () => {
+  test('Property computed dataproperties', () => {
+    const js = `obj = {a: 1, ['x']: {['y']: 2}, ['z']: 3, [99]: 4, [Infinity]: 5, [true]: 6, [call()]: 7}`;
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let objNode = script.statements[0].expression.binding;
+    let aNode = script.statements[0].expression.expression.properties[0].name;
+    let xNode = script.statements[0].expression.expression.properties[1].name;
+    let yNode = script.statements[0].expression.expression.properties[1].expression.properties[0].name;
+    let zNode = script.statements[0].expression.expression.properties[2].name;
+    let ninetyNineNode = script.statements[0].expression.expression.properties[3].name;
+    let infinityNodeProperty = script.statements[0].expression.expression.properties[4].name;
+    let infinityNodeIdentifier = script.statements[0].expression.expression.properties[4].name.expression;
+    let trueNode = script.statements[0].expression.expression.properties[5].name;
+    let callNodeProperty = script.statements[0].expression.expression.properties[6].name;
+    let callNodeIdentifier = script.statements[0].expression.expression.properties[6].name.expression.callee;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['obj', 'Infinity', 'call'];
+
+      let xProperties = new Map;
+      xProperties.set('y', {
+        name: 'y',
+        references: [yNode],
+        properties: new Map,
+      });
+
+      let objProperties = new Map;
+      objProperties.set('a', {
+        name: 'a',
+        references: [aNode],
+        properties: new Map,
+      });
+      objProperties.set('x', {
+        name: 'x',
+        references: [xNode],
+        properties: xProperties,
+      });
+      objProperties.set('z', {
+        name: 'z',
+        references: [zNode],
+        properties: new Map,
+      });
+      objProperties.set('99', {
+        name: '99',
+        references: [ninetyNineNode],
+        properties: new Map,
+      });
+      objProperties.set('true', {
+        name: 'true',
+        references: [trueNode],
+        properties: new Map,
+      });
+      objProperties.set('*dynamic*', {
+        name: '*dynamic*',
+        references: [infinityNodeProperty, callNodeProperty],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('obj', [NO_DECLARATIONS, [objNode], objProperties]);
+      variables.set('Infinity', [NO_DECLARATIONS, [infinityNodeIdentifier], NO_PROPERTIES]);
+      variables.set('call', [NO_DECLARATIONS, [callNodeIdentifier], NO_PROPERTIES]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(objNode, Accessibility.WRITE);
+      referenceTypes.set(aNode, Accessibility.WRITE);
+      referenceTypes.set(xNode, Accessibility.WRITE);
+      referenceTypes.set(yNode, Accessibility.WRITE);
+      referenceTypes.set(zNode, Accessibility.WRITE);
+      referenceTypes.set(ninetyNineNode, Accessibility.WRITE);
+      referenceTypes.set(infinityNodeProperty, Accessibility.WRITE);
+      referenceTypes.set(infinityNodeIdentifier, Accessibility.READ);
+      referenceTypes.set(trueNode, Accessibility.WRITE);
+      referenceTypes.set(callNodeProperty, Accessibility.WRITE);
+      referenceTypes.set(callNodeIdentifier, Accessibility.READ);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('Property arraybinding declarator', () => {
     const js = 'var [a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];';
     // TODO this tests currently fails: arrayBinding is broken in analyzer
     let script = parseScript(js);
@@ -3063,7 +3147,7 @@ suite('unit', () => {
     }
   });
 
-  test('Property 5', () => {
+  test('Property arraybinding assignment', () => {
     const js = `
       [a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];
       [d, [e, f], ...[rest2]] = [{u: 1}, [{v: 2}, {t: 3}], {s: 4}, {l: 5}];
@@ -3167,13 +3251,101 @@ suite('unit', () => {
       referenceTypes.set(tNode1, Accessibility.WRITE);
       referenceTypes.set(sNode1, Accessibility.WRITE);
 
-      debugger
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('ObjectAssignmentTarget', () => {
+    const js = '(obj = {a, b, ...rest} = {a: {x: 1}, b: {y: 2}, c: 3, d: 4})';
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let objNode = script.statements[0].expression.binding;
+    let aNode1 = script.statements[0].expression.expression.binding.properties[0].binding;
+    let bNode1 = script.statements[0].expression.expression.binding.properties[1].binding;
+    let restNode = script.statements[0].expression.expression.binding.rest;
+    let aNode2 = script.statements[0].expression.expression.expression.properties[0].name;
+    let bNode2 = script.statements[0].expression.expression.expression.properties[1].name;
+    let xNode = script.statements[0].expression.expression.expression.properties[0].expression.properties[0].name;
+    let yNode = script.statements[0].expression.expression.expression.properties[1].expression.properties[0].name;
+    let cNode = script.statements[0].expression.expression.expression.properties[2].name;
+    let dNode = script.statements[0].expression.expression.expression.properties[3].name;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['obj', 'a', 'b', 'rest'];
+
+      let aProperties = new Map;
+      aProperties.set('x', {
+        name: 'x',
+        references: [xNode],
+        properties: new Map,
+      });
+      let bProperties = new Map;
+      bProperties.set('y', {
+        name: 'y',
+        references: [yNode],
+        properties: new Map,
+      });
+      let restProperties = new Map;
+      restProperties.set('c', {
+        name: 'c',
+        references: [cNode],
+        properties: new Map,
+      });
+      restProperties.set('d', {
+        name: 'd',
+        references: [dNode],
+        properties: new Map,
+      });
+
+      let objProperties = new Map;
+      objProperties.set('a', {
+        name: 'a',
+        references: [aNode2],
+        properties: aProperties,
+      });
+      objProperties.set('b', {
+        name: 'b',
+        references: [bNode2],
+        properties: bProperties,
+      });
+      objProperties.set('c', {
+        name: 'c',
+        references: [cNode],
+        properties: new Map,
+      });
+      objProperties.set('d', {
+        name: 'd',
+        references: [dNode],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('obj', [NO_DECLARATIONS, [objNode], objProperties]);
+      variables.set('a', [NO_DECLARATIONS, [aNode1], aProperties]);
+      variables.set('b', [NO_DECLARATIONS, [bNode1], bProperties]);
+      variables.set('rest', [NO_DECLARATIONS, [restNode], restProperties]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(objNode, Accessibility.WRITE);
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(bNode1, Accessibility.WRITE);
+      referenceTypes.set(restNode, Accessibility.WRITE);
+      referenceTypes.set(aNode2, Accessibility.WRITE);
+      referenceTypes.set(bNode2, Accessibility.WRITE);
+      referenceTypes.set(cNode, Accessibility.WRITE);
+      referenceTypes.set(dNode, Accessibility.WRITE);
+      referenceTypes.set(xNode, Accessibility.WRITE);
+      referenceTypes.set(yNode, Accessibility.WRITE);
 
       checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
     }
   });
 
-  // test('Property 6', () => {
+  // test('Property 7', () => {
   //   const js = '[a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];';
   //   let script = parseScript(js);
 

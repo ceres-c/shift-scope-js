@@ -92,9 +92,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     );
     s.isArrayAT = true;
     return s;
-    // TESTS
-    // [a, b, ...[rest]] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3]; // `rest` does accept properties
-    // [a, b, ...rest] = [{b: {x: 1, y: 2}, c: 3}, 1, 2, 3];   // `rest` does not accept properties
   }
 
   // TODO all bindings
@@ -258,7 +255,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceComputedPropertyName(node, { expression }) {
-    // TESTS a = {['x']: {['o']: 1}, ['y']: 2, [55]: 3, [Infinity]: 4, [true]: 5, [call()]: 6}
     if (node.expression.type.includes('Literal')) {
       return expression.concat(new ScopeState({
         dataProperties: new Map().set(
@@ -406,7 +402,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectAssignmentTarget(node, { properties, rest }) {
-    // TESTS `({a, b, ...rest} = {a: 10, b: 20, c: 30, d: 40})`
     if (rest) {
       return this.fold([...properties, rest.setRest()], new ScopeState({isObjectAT: true}));
       // rest can't be used as an init value because that would modify the order of parameters
