@@ -406,6 +406,15 @@ export default class ScopeState {
     return s;
   }
 
+  prependSearchPath(n) {
+    let recursiveCore = (b) => Array.isArray(b) ? b.map(recursiveCore) : b.prependSearchPath(n);
+
+    let s = new ScopeState(this);
+    s.atsForParent = s.atsForParent.map(ats => recursiveCore(ats));
+    s.bindingsForParent = s.bindingsForParent.map(binding => recursiveCore(binding));
+    return s;
+  }
+
   taint() {
     let s = new ScopeState(this);
     s.dynamic = true;

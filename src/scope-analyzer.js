@@ -72,6 +72,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return params.concat(body).finish(fnNode, fnType, { shouldResolveArguments: !isArrowFn, shouldB33: this.sloppySet.has(fnNode) });
   }
 
+  // TODO reduceArrayBinding like reduceArrayAssignmentTarget
+
   reduceArrayAssignmentTarget(node, {elements, rest}) {
     let scopes;
     if (rest !== null) {
@@ -95,8 +97,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   // TODO all bindings
-  // TODO reduceArrayBinding like reduceArrayAssignmentTarget above
-  // TODO reduceObjectBindings like reduceObjectAssignmentTarget above
   // TODO everything with bindingsForParent in scope-state
 
   reduceArrayExpression(node, { elements }) {
@@ -118,6 +118,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       binding: binding.addReferences(Accessibility.WRITE, true), // Keep atsForParent
       expression,
     });
+    debugger
     return s
       .mergeObjectAssignment()
       .mergeDataProperties()
@@ -143,7 +144,15 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return binding;
   }
 
+  reduceAssignmentTargetPropertyProperty(node, { name, binding }) {
+    let [prpName] = name.dataProperties.keys();
+    return super
+      .reduceAssignmentTargetPropertyProperty(node, { name, binding })
+      .prependSearchPath(prpName);
+  }
+
   reduceBindingIdentifier(node) {
+    // TODO do something with properties here?
     if (node.name === '*default*') {
       return new ScopeState;
     }
@@ -151,6 +160,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceBindingPropertyIdentifier(node, { binding, init }) {
+    // TODO do something with properties here?
     const s = super.reduceBindingPropertyIdentifier(node, { binding, init });
     if (init) {
       return s.withParameterExpressions();
@@ -159,6 +169,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceBindingPropertyProperty(node, { name, binding }) {
+    // TODO do something with properties here? Preprend search path like in reduceAssignmentTargetPropertyProperty?
     const s = super.reduceBindingPropertyProperty(node, { name, binding });
     if (node.name.type === 'ComputedPropertyName') {
       return s.withParameterExpressions();
@@ -167,6 +178,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceBindingWithDefault(node, { binding, init }) {
+    // TODO do something with properties here?
+    // merge DataProperties with ObjectBindings as is done in reduceAssignmentTargetPropertyIdentifier
+    // TESTS: `var {b: x = {a: 5}} = {x: 5};` => x = {a: 5}
+
+    // Note: Below statement includes an ArrayBinding, thus once the reductor for that is implemented no specific care is required
+    //  `var {b: [x, y] = [{a: 5}, {b: 6}]} = {x: 5}` => x = {a: 5}, y = {b: 6};
     return super.reduceBindingWithDefault(node, { binding, init }).withParameterExpressions();
   }
 
@@ -278,6 +295,11 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = new ScopeState().concat(name).concat(expression);
 
     let [k, p] = [...s.dataProperties][0];
+    // WARNING above line breaks when a DataProperty contains an ArrayExpression
+    // e.g. `({y: [q, k]} = {y: [{z: 2}, {w: 3}]});`
+    // TODO: write generic method to associate an ArrayBinding to an ArrayExpression at any given depth level
+    //       and use it in mergeDataProperties.
+    // TODO: create new data type and pass it to the caller to wrap ArrayExpressions here. Something orthogonal to all Array Bindings.
 
     s.dataProperties = new Map()
       .set(k, new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} ) );
@@ -402,12 +424,32 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectAssignmentTarget(node, { properties, rest }) {
+    let scopes;
     if (rest) {
-      return this.fold([...properties, rest.setRest()], new ScopeState({isObjectAT: true}));
-      // rest can't be used as an init value because that would modify the order of parameters
+      scopes = [...properties, rest.setRest()]; // rest can't be used as an init value because that would modify the order of parameters
     } else {
-      return this.fold(properties, new ScopeState({isObjectAT: true}));
+      scopes = properties;
     }
+    let s = this.fold(scopes, new ScopeState({isObjectAT: true}));
+    if (scopes.length > 1) { // TODO is there a more elegant way? Maybe perfect below reductor? I'm tired and should probably go to bed.
+      // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
+      // e.g. `({a: [x, y]} = {a: [1, 2]})`
+      s.atsForParent = scopes.reduce((acc, scope) =>
+        scope.isArrayAT ? (acc.push(scope.atsForParent), acc) : acc.concat(scope.atsForParent),
+        // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
+        []
+      );
+    }
+    return s;
+  }
+
+  reduceObjectBinding(node, { properties, rest }) {
+    // TODO do something like reduceObjectAssignmentTarget: mark state as objectBinding
+    // dataProperties will be merged in reduceVariableDeclarator like they're merged in reduceAssignmentExpression
+    // e.g. var {a, x: {y: z}} = {a: 1, x: {y: {z: 2}}}; (no need to test this, already tested in reduceVariableDeclarator)
+    let s = super.reduceObjectBinding(node, { properties, rest });
+    debugger;
+    return s
   }
 
   reduceObjectExpression(node, { properties }) {
@@ -524,14 +566,20 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     const s = super.reduceVariableDeclarator(node, { binding, init });
     if (init) {
       return s.addReferences(Accessibility.WRITE, true);
-      // TODO merge DataProperties with ObjectBindings as is done in reduceAssignmentTargetPropertyIdentifier
-      // e.g. `var {a: {b: c}} = {a: {b: {c: 5}}};` => c.c = 5
+      // TODO merge properties for both objects and arrays as in reduceAssignmentExpression
+      // .mergeObjectAssignment().mergeDataProperties()
+
+      // TESTS:
+      //  var {a: {b: c}} = {a: {b: 1}}; => c = 1
+      //  var {a, x: {y: z}} = {a: 1, x: {y: 2}}; => a = 1, z = 2
+      //  var [x, {a: {b: c}}] = [1, {a: {b: {c: 2}}}]; => x = 1, c = 2
     }
     return s;
   }
 
   reduceWithStatement(node, { object, body }) {
-    // TODO fix cases such as WithStatement 2 from unit tests
+    // TODO move scope chain down to path in `object` for all the elements in `body`
+    // e.g. WithStatement 2 from unit tests
     return super.reduceWithStatement(node, { object, body: body.finish(node, ScopeType.WITH) });
   }
 }

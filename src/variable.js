@@ -122,6 +122,7 @@ export class Binding {
     {
       name = '',
       path = '',
+      searchPath = '', // path to search for this binding in right hand expression when merging objectAssignments or objectBindings
       node = null,
       isRest = false,
       acceptProperties = true,
@@ -129,6 +130,7 @@ export class Binding {
   ) {
     this.name = name;
     this.path = path;
+    this.searchPath = searchPath;
     this.node = node;
     this.isRest = isRest;
     this.acceptProperties = acceptProperties;
@@ -140,6 +142,12 @@ export class Binding {
     b.name = n;
     b.path = b.path + '.' + n;
     if (node) b.node = node;
+    return b;
+  }
+
+  prependSearchPath(n) {
+    let b = new Binding(this);
+    b.searchPath = b.searchPath ? n + '.' + b.searchPath : n;
     return b;
   }
 
