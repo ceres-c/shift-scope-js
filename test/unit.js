@@ -3255,7 +3255,7 @@ suite('unit', () => {
     }
   });
 
-  test('ObjectAssignmentTarget', () => {
+  test('ObjectAssignmentTarget 1', () => {
     const js = '(obj = {a, b, ...rest} = {a: {x: 1}, b: {y: 2}, c: 3, d: 4})';
     let script = parseScript(js);
 
@@ -3340,6 +3340,41 @@ suite('unit', () => {
       referenceTypes.set(dNode, Accessibility.WRITE);
       referenceTypes.set(xNode, Accessibility.WRITE);
       referenceTypes.set(yNode, Accessibility.WRITE);
+
+      checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
+    }
+  });
+
+  test('ObjectAssignmentTarget 2', () => {
+    // TODO this tests currently fails: problem with PropertyProperty in analyzer and need to fix mergeObjectAssignment as well
+    const js = '({a, x: {y: q}} = {a: 1, x: {y: {z: 2}}});';
+    let script = parseScript(js);
+
+    let globalScope = analyze(script);
+    let scriptScope = globalScope.children[0];
+
+    let aNode1 = script.statements[0].expression.binding.properties[0].binding;
+    let qNode = script.statements[0].expression.binding.properties[1].binding.properties[0].binding;
+    let zNode = script.statements[0].expression.expression.properties[1].expression.properties[0].expression.properties[0].name;
+
+    { // global scope
+      let children = [scriptScope];
+      let through = ['a', 'q'];
+
+      let qProperties = new Map;
+      qProperties.set('z', {
+        name: 'z',
+        references: [zNode],
+        properties: new Map,
+      });
+
+      let variables = new Map;
+      variables.set('a', [NO_DECLARATIONS, [aNode1], NO_PROPERTIES]);
+      variables.set('q', [NO_DECLARATIONS, [qNode], qProperties]);
+
+      let referenceTypes = new Map;
+      referenceTypes.set(aNode1, Accessibility.WRITE);
+      referenceTypes.set(qNode, Accessibility.WRITE);
 
       checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
     }
