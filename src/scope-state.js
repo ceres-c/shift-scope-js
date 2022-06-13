@@ -18,7 +18,7 @@ import MultiMap from 'multimap';
 import { Declaration, DeclarationType } from './declaration';
 import { Reference } from './reference';
 import { Scope, GlobalScope, ScopeType } from './scope';
-import { Property, Variable } from './variable';
+import { BindingArray, Property, Variable } from './variable';
 
 function merge(multiMap, otherMultiMap) {
   otherMultiMap.forEachEntry((v, k) => {
@@ -57,12 +57,12 @@ export default class ScopeState {
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
       children = [],
       dynamic = false,
-      bindingsForParent = [], // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
-      atsForParent = [], // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
+      bindingsForParent = new BindingArray, // either references bubbling up to the ForOfStatement, or ForInStatement which writes to them or declarations bubbling up to the VariableDeclaration, FunctionDeclaration, ClassDeclaration, FormalParameters, Setter, Method, or CatchClause which declares them
+      atsForParent = new BindingArray, // references bubbling up to the AssignmentExpression, ForOfStatement, or ForInStatement which writes to them
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
       lastBinding = null, // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
-      dataProperties = new Map,
+      dataProperties = new Map, // TODO change name? This is used for both properties in ObjectExpressions as target and sources
       prpForParent = [], // List of dataProperties maps (or list of maps) from child ObjectExpression elements (order preserved)
       isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
       isArrayExpr = false, // Marks wether this state comes from an ArrayExpression
@@ -115,8 +115,8 @@ export default class ScopeState {
       ),
       children: this.children.concat(b.children),
       dynamic: this.dynamic || b.dynamic,
-      bindingsForParent: this.bindingsForParent.concat(b.bindingsForParent),
-      atsForParent: this.atsForParent.concat(b.atsForParent),
+      bindingsForParent: this.bindingsForParent.merge(b.bindingsForParent),
+      atsForParent: this.atsForParent.merge(b.atsForParent),
       potentiallyVarScopedFunctionDeclarations: merge(
         merge(new MultiMap, this.potentiallyVarScopedFunctionDeclarations),
         b.potentiallyVarScopedFunctionDeclarations,
@@ -196,8 +196,8 @@ export default class ScopeState {
       s.functionScopedDeclarations = declMap;
     }
     if (!keepBindingsForParent) {
-      s.bindingsForParent = [];
-      s.atsForParent = [];
+      s.bindingsForParent = new BindingArray;
+      s.atsForParent = new BindingArray;
     }
     return s;
   }
@@ -206,7 +206,7 @@ export default class ScopeState {
     if (this.bindingsForParent.length === 0) {
       return this; // i.e., this function declaration is `export default function () {...}`
     }
-    const binding = this.bindingsForParent[0];
+    const binding = this.bindingsForParent.get(0);
     let s = new ScopeState(this);
     merge(
       s.functionDeclarations,
@@ -214,7 +214,7 @@ export default class ScopeState {
         [binding.name, new Declaration(binding.node, DeclarationType.FUNCTION_DECLARATION)],
       ]),
     );
-    s.bindingsForParent = [];
+    s.bindingsForParent = new BindingArray;
     return s;
   }
 
@@ -225,7 +225,7 @@ export default class ScopeState {
     const newNodeFromPath = (p, name) => p.includes('.') ? new Property({name: name}) : new Variable({name: name});
 
     let s = new ScopeState(this);
-    this.bindingsForParent.forEach(binding => {
+    this.bindingsForParent.forEach(binding => { // TODO flatten bindings as well?
       let current = s.getNodeFromPath(binding.path) || newNodeFromPath(binding.path, binding.name);
       let result = s.setNodeInPath(binding.path, current.addReference(new Reference(binding.node, accessibility)));
       if (!result) {
@@ -240,8 +240,8 @@ export default class ScopeState {
       }
     });
     if (!keepBindingsForParent) {
-      s.bindingsForParent = [];
-      s.atsForParent = [];
+      s.bindingsForParent = new BindingArray;
+      s.atsForParent = new BindingArray;
     }
     return s;
   }
@@ -265,13 +265,19 @@ export default class ScopeState {
 
   setRest() {
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.setRest());
+    // TODO do the same for bindings
+    if (s.isArrayAT) {
+      s.atsForParent = s.atsForParent.setRest();
+    } else {
+      s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.setRest()), rest: s.atsForParent.isRest});
+    }
     return s;
   }
 
   rejectProperties() {
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(b => Array.isArray(b) ? b : b.rejectProperties());
+    // TODO do the same for bindings
+    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.isArray ? b : b.rejectProperties()), rest: s.atsForParent.isRest});
     return s;
   }
 
@@ -295,44 +301,23 @@ export default class ScopeState {
     const zipRest = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
 
     function recursiveCore(targets, sources) {
-      if (targets.length === 0) {
-        return;
-      }
-      if (Array.isArray(targets[targets.length - 1])) {
+
+      if (targets.get(targets.length - 1).isRest && targets.get(targets.length - 1).isArray) {
+        // TODO instead call recursiveCore again with rest array and remaining sources at the end of this function, to make it more straightforward
+
         // Workaround for destructuring assignments yielding unbalanced trees
         // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
 
-        // TODO broken. With assignments such as `[a, ...[rest, [rest2]]] = [{x: 1}, {y: 2}, {z: 3}]`
-        // rest2 will be given a property `w` which it should not have (BTW this js is illegal at runtime)
         let src = [];
         src.push(...sources.slice(0, targets.length-1));
-        src.push(sources.slice(targets.length-1, targets.length-1 + targets[targets.length-1].length));
+        src.push(sources.slice(targets.length-1, targets.length-1 + targets.get(targets.length - 1).length));
         sources = src;
       }
 
-      // TODO remove
-      // let zip;
-      // if (targets[targets.length - 1].isRest) {
-      //   // e.g. `[a, ...rest] = [{x: 1}, {y: 2}, {z: 3}]`
-      //   zip = zipRest;
-      // } else if (Array.isArray(targets[targets.length - 1])) {
-      //   // e.g. `[a, ...[rest, rest2]] = [{x: 1}, {y: 2}, {z: 3}]`
-      //   // TODO solve this somehow
-      // } else {
-      //   zip = zipStd;
-      // }
+      let zip = targets.get(targets.length - 1).isRest ? zipRest : zipStd;
 
-      let zip = targets[targets.length - 1].isRest ? zipRest : zipStd;
-
-      for (let [binding, prop] of zip(targets, sources)) {
-        if (Array.isArray(binding)) {
-          // TODO remove
-          // if (!Array.isArray(prop)) {
-          //   // Wrap prop in array as a workaround for destructuring assignments yielding unbalanced trees
-          //   // e.g. `[a, ...[rest]] = [{y: 2}, {z: 3}, {w: 4}]`
-          //   prop = [prop] // TODO increase number of props
-          // }
-          // recursiveCore(binding, Array.isArray(prop) ? prop : [prop]);
+      for (let [binding, prop] of zip(targets.bindings, sources)) {
+        if (binding.isArray) {
           recursiveCore(binding, prop);
         } else {
           if (!binding.acceptProperties || Array.isArray(prop)) {
@@ -359,8 +344,8 @@ export default class ScopeState {
     }
 
     let s = new ScopeState(this);
-    recursiveCore(s.atsForParent, s.prpForParent);
-    recursiveCore(s.bindingsForParent, s.prpForParent);
+    s.atsForParent.length > 0 && recursiveCore(s.atsForParent, s.prpForParent);
+    s.bindingsForParent.length > 0 && recursiveCore(s.bindingsForParent, s.prpForParent);
     if (s.isArrayAT) { // TODO s.isArrayBinding
       // e.g. a = [b] = [{x: 1}]
       s.prpForParent = [];
@@ -396,13 +381,13 @@ export default class ScopeState {
 
     commonAts.forEach(b => addProperties(b, prp.get(b.name).properties));
 
-    if(ats[ats.length - 1].isRest) {
+    if(ats.get(ats.length - 1).isRest) {
       let remainingProperties = new Map(prp);
       commonAts.forEach(ats => remainingProperties.delete(ats.name));
-      addProperties(ats[ats.length - 1], remainingProperties);
+      addProperties(ats.get(ats.length - 1), remainingProperties);
     }
     s.isObjectAT = false;
-    s.atsForParent = [];
+    s.atsForParent = new BindingArray;
     return s;
   }
 
@@ -410,8 +395,8 @@ export default class ScopeState {
     let recursiveCore = (b) => Array.isArray(b) ? b.map(recursiveCore) : b.prependSearchPath(n);
 
     let s = new ScopeState(this);
-    s.atsForParent = s.atsForParent.map(ats => recursiveCore(ats));
-    s.bindingsForParent = s.bindingsForParent.map(binding => recursiveCore(binding));
+    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(recursiveCore), rest: s.atsForParent.isRest});
+    s.bindingsForParent = new BindingArray({bindings: s.bindingsForParent.map(recursiveCore), rest: s.bindingsForParent.isRest});
     return s;
   }
 
@@ -423,13 +408,13 @@ export default class ScopeState {
 
   withoutBindingsForParent() {
     let s = new ScopeState(this);
-    s.bindingsForParent = [];
+    s.bindingsForParent = new BindingArray;
     return s;
   }
 
   withoutAtsForParent() {
     let s = new ScopeState(this);
-    s.atsForParent = [];
+    s.atsForParent = new BindingArray;
     return s;
   }
 

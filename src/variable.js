@@ -35,7 +35,7 @@ export class Variable {
   }
 
   /*
-   * Monoidal append: merges the two variables together
+   * Monoidal append: merge two Variable objects together
    */
   concat(b) {
     if (this === b) {
@@ -87,7 +87,7 @@ export class Property {
   }
 
   /*
-   * Monoidal append: merges the two properties together
+   * Monoidal append: merge two Property objects together
    * Dumb recursive implementation
    */
   concat(b) {
@@ -162,4 +162,116 @@ export class Binding {
     b.acceptProperties = false;
     return b;
   }
+}
+
+// Non-monadic class
+export class BindingArray { // TODO call all standard array methods without reimplementing them in such a dumb way
+  constructor(
+    {
+      bindings = [],
+      isRest = false,
+    } = {}
+  ) {
+    this.bindings = [].concat(bindings);
+    this.isRest = isRest;
+    this.isArray = true;
+    this.length = this.bindings.length;
+  }
+
+  setRest() {
+    return  new BindingArray({bindings: this.bindings, isRest: true});
+  }
+
+  get(i) {
+    return this.bindings[i];
+  }
+
+  /* Monoidal append: merge two BindingArray objects together */
+  merge(b) {
+    return new BindingArray({bindings: [...this.bindings, ...b.bindings], isRest: this.isRest || b.isRest});
+  }
+
+  /* Append either a Binding or a BindingArray to the end of this BindingArray */
+  mergeHierarchical(b, child = false) {
+    if (b.length === 0) {
+      return this;
+    }
+    let bindings = [...this.bindings];
+    child ? bindings.push(b) : bindings.push(...b.bindings);
+    let isRest = child ? this.isRest : this.isRest || b.isRest;
+    return new BindingArray({bindings: bindings, isRest: isRest});
+  }
+
+  /* quack quack, I'm an array */
+  push(b) {
+    return this.length = this.bindings.push(b);
+  }
+
+  concat(b) {
+    return this.bindings.concat(b);
+  }
+
+  flat(depth = 1) {
+    return depth > 0 ?
+      this.bindings.reduce((acc, val) => acc.concat(val.isArray ? val.flat(depth - 1) : val), []) :
+      [...this.bindings];
+  }
+
+  filter(callback, thisArg) {
+    const newArray = [];
+    for (let i = 0; i < this.bindings.length; i += 1) {
+      if (callback.call(thisArg, this.bindings[i], i, this.bindings)) {
+        newArray.push(this.bindings[i]);
+      }
+    }
+    return newArray;
+  };
+
+  // Below functions are blatantly copied from https://github.com/knaxus/native-javascript
+  forEach(callback) {
+    for (let i = 0; i < this.bindings.length; i += 1) {
+      if (Object.hasOwnProperty.call(this.bindings, i)) {
+        callback(this.bindings[i], i, this.bindings);
+      }
+    }
+  }
+
+  reduce(reducer, initialValue) {
+    let accumulator = initialValue;
+    let i = 0;
+
+    // initival value check
+    if (typeof initialValue === 'undefined') {
+      if (this.length === 0) {
+        // no reduce on empty array without and initial value
+        throw new TypeError('reduce on empty array without initial value');
+      }
+
+      // no initial value, so accumulator is set to first element,
+      // and first iteration is skipped
+      [accumulator] = this.bindings;
+      i = 1;
+    }
+
+    for (; i < this.bindings.length; i += 1) {
+      accumulator = reducer(accumulator, this.bindings[i], i, this.bindings);
+    }
+
+    return accumulator;
+  }
+
+  map(callback) {
+    var mapArray = [];
+    for (let i = 0; i < this.bindings.length; i++) {
+      mapArray.push(callback.call(this.bindings, this.bindings[i], i, this.bindings));
+    }
+    return mapArray;
+  }
+
+  // // TODO modify all array-like functions to return a new BindingArray
+  // map(callback) {
+  //   let b = new BindingArray(this);
+  //   b.bindings = this.bindings.map(callback);
+  //   return b;
+  // }
 }

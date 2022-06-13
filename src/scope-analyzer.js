@@ -20,7 +20,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, Property, Variable } from './variable';
+import { Binding, BindingArray, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -76,23 +76,18 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceArrayAssignmentTarget(node, {elements, rest}) {
     let scopes;
-    if (rest !== null) {
-      let r = new ScopeState(rest);
-      if (!r.isArrayAT) {
-        // Rest can't accept properties, unless it is an ArrayAssignmentTarget itself
-        r = r.setRest().rejectProperties();
-      }
-      scopes = [...elements, r]; // Leave rest as last element
+    if (rest && !rest.isArrayAT) {
+      // rest do not accept properties (it is a list)...
+      scopes = [...elements, rest.setRest().rejectProperties()]; // Leave rest as last element
+    } else if (rest && rest.isArrayAT) {
+      // ...unless it is a destructured assignment
+      scopes = [...elements, rest.setRest()];
     } else {
       scopes = elements;
     }
-    let s = this.fold(scopes);
-    s.atsForParent = scopes.reduce(
-      (acc, state) => state.isArrayAT ? (acc.push(state.atsForParent), acc) : acc.concat(state.atsForParent),
-      // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
-      []
-    );
-    s.isArrayAT = true;
+
+    let s = this.fold(scopes, new ScopeState({isArrayAT: true}));
+    s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
     return s;
   }
 
@@ -118,7 +113,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       binding: binding.addReferences(Accessibility.WRITE, true), // Keep atsForParent
       expression,
     });
-    debugger
     return s
       .mergeObjectAssignment()
       .mergeDataProperties()
@@ -126,11 +120,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentTargetIdentifier(node) {
-    return new ScopeState({ atsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
+    return new ScopeState({ atsForParent: new BindingArray({bindings: new Binding({name: node.name, path: node.name, node: node}) }) });
+    // TODO implement Binding.toArray() to get a Binding wrapped in a BindingArray flawlessly (maybe)
   }
 
   reduceAssignmentTargetPropertyIdentifier(node, { binding, init }) {
-    let bName = binding.atsForParent[0].name;
+    let bName = binding.atsForParent.get(0).name;
     if (init) {
       let i = new ScopeState({
         freeIdentifiers: new Map([ [bName, new Variable({name: bName})] ])
@@ -156,7 +151,8 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (node.name === '*default*') {
       return new ScopeState;
     }
-    return new ScopeState({ bindingsForParent: [new Binding({name: node.name, path: node.name, node: node})] });
+    return new ScopeState({ bindingsForParent: new BindingArray({ bindings: [new Binding({name: node.name, path: node.name, node: node})] }) });
+    // TODO implement Binding.toArray() to get a Binding Array flawlessly (maybe)
   }
 
   reduceBindingPropertyIdentifier(node, { binding, init }) {
@@ -426,7 +422,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceObjectAssignmentTarget(node, { properties, rest }) {
     let scopes;
     if (rest) {
-      scopes = [...properties, rest.setRest()]; // rest can't be used as an init value because that would modify the order of parameters
+      scopes = [...properties, rest.setRest()]; // Leave rest as last element
     } else {
       scopes = properties;
     }
@@ -434,11 +430,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (scopes.length > 1) { // TODO is there a more elegant way? Maybe perfect below reductor? I'm tired and should probably go to bed.
       // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
       // e.g. `({a: [x, y]} = {a: [1, 2]})`
-      s.atsForParent = scopes.reduce((acc, scope) =>
-        scope.isArrayAT ? (acc.push(scope.atsForParent), acc) : acc.concat(scope.atsForParent),
-        // Keep child ArrayAssignmentTargets as nested lists, concat all other bindings. This allows correct properties assignment later
-        []
-      );
+      s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
     }
     return s;
   }
@@ -448,7 +440,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     // dataProperties will be merged in reduceVariableDeclarator like they're merged in reduceAssignmentExpression
     // e.g. var {a, x: {y: z}} = {a: 1, x: {y: {z: 2}}}; (no need to test this, already tested in reduceVariableDeclarator)
     let s = super.reduceObjectBinding(node, { properties, rest });
-    debugger;
     return s
   }
 
