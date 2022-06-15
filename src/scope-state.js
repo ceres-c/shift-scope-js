@@ -392,7 +392,9 @@ export default class ScopeState {
   }
 
   prependSearchPath(n) {
-    let recursiveCore = (b) => Array.isArray(b) ? b.map(recursiveCore) : b.prependSearchPath(n);
+    let recursiveCore = (b) => b.isArray ? b.map(recursiveCore) : b.prependSearchPath(n);
+
+    debugger;
 
     let s = new ScopeState(this);
     s.atsForParent = new BindingArray({bindings: s.atsForParent.map(recursiveCore), rest: s.atsForParent.isRest});

@@ -88,6 +88,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
     let s = this.fold(scopes, new ScopeState({isArrayAT: true}));
     s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
+    debugger;
     return s;
   }
 
@@ -113,6 +114,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       binding: binding.addReferences(Accessibility.WRITE, true), // Keep atsForParent
       expression,
     });
+    debugger;
     return s
       .mergeObjectAssignment()
       .mergeDataProperties()
@@ -427,6 +429,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       scopes = properties;
     }
     let s = this.fold(scopes, new ScopeState({isObjectAT: true}));
+    debugger;
     if (scopes.length > 1) { // TODO is there a more elegant way? Maybe perfect below reductor? I'm tired and should probably go to bed.
       // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
       // e.g. `({a: [x, y]} = {a: [1, 2]})`
