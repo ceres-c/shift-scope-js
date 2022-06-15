@@ -122,7 +122,6 @@ export class Binding {
     {
       name = '',
       path = '',
-      searchPath = '', // path to search for this binding in right hand expression when merging objectAssignments or objectBindings
       node = null,
       isRest = false,
       acceptProperties = true,
@@ -130,7 +129,6 @@ export class Binding {
   ) {
     this.name = name;
     this.path = path;
-    this.searchPath = searchPath;
     this.node = node;
     this.isRest = isRest;
     this.acceptProperties = acceptProperties;
@@ -142,12 +140,6 @@ export class Binding {
     b.name = n;
     b.path = b.path + '.' + n;
     if (node) b.node = node;
-    return b;
-  }
-
-  prependSearchPath(n) {
-    let b = new Binding(this);
-    b.searchPath = b.searchPath ? n + '.' + b.searchPath : n;
     return b;
   }
 
@@ -170,10 +162,12 @@ export class BindingArray { // TODO call all standard array methods without reim
     {
       bindings = [],
       isRest = false,
+      searchPath = '',
     } = {}
   ) {
     this.bindings = [].concat(bindings);
     this.isRest = isRest;
+    this.searchPath = searchPath;
     this.isArray = true;
     this.length = this.bindings.length;
   }
@@ -188,7 +182,11 @@ export class BindingArray { // TODO call all standard array methods without reim
 
   /* Monoidal append: merge two BindingArray objects together */
   merge(b) {
-    return new BindingArray({bindings: [...this.bindings, ...b.bindings], isRest: this.isRest || b.isRest});
+    return new BindingArray({
+      bindings: [...this.bindings, ...b.bindings],
+      isRest: this.isRest || b.isRest,
+      searchPath: this.searchPath || b.searchPath
+    });
   }
 
   /* Append either a Binding or a BindingArray to the end of this BindingArray */
@@ -202,13 +200,21 @@ export class BindingArray { // TODO call all standard array methods without reim
     return new BindingArray({bindings: bindings, isRest: isRest});
   }
 
+  prependSearchPath(n) {
+    let ba = new BindingArray(this);
+    ba.searchPath = ba.searchPath ? n + '.' + ba.searchPath : n;
+    return ba;
+  }
+
   /* quack quack, I'm an array */
   push(b) {
     return this.length = this.bindings.push(b);
   }
 
   concat(b) {
-    return this.bindings.concat(b);
+    let ba = new BindingArray(this);
+    ba.bindings.concat(b);
+    return ba;
   }
 
   flat(depth = 1) {
@@ -218,60 +224,22 @@ export class BindingArray { // TODO call all standard array methods without reim
   }
 
   filter(callback, thisArg) {
-    const newArray = [];
-    for (let i = 0; i < this.bindings.length; i += 1) {
-      if (callback.call(thisArg, this.bindings[i], i, this.bindings)) {
-        newArray.push(this.bindings[i]);
-      }
-    }
-    return newArray;
+    let ba = new BindingArray(this);
+    ba.bindings = this.bindings.filter(callback, thisArg);
+    return ba;
   };
 
-  // Below functions are blatantly copied from https://github.com/knaxus/native-javascript
-  forEach(callback) {
-    for (let i = 0; i < this.bindings.length; i += 1) {
-      if (Object.hasOwnProperty.call(this.bindings, i)) {
-        callback(this.bindings[i], i, this.bindings);
-      }
-    }
+  forEach(callback, thisArg) {
+    this.bindings.forEach(callback, thisArg);
   }
 
-  reduce(reducer, initialValue) {
-    let accumulator = initialValue;
-    let i = 0;
-
-    // initival value check
-    if (typeof initialValue === 'undefined') {
-      if (this.length === 0) {
-        // no reduce on empty array without and initial value
-        throw new TypeError('reduce on empty array without initial value');
-      }
-
-      // no initial value, so accumulator is set to first element,
-      // and first iteration is skipped
-      [accumulator] = this.bindings;
-      i = 1;
-    }
-
-    for (; i < this.bindings.length; i += 1) {
-      accumulator = reducer(accumulator, this.bindings[i], i, this.bindings);
-    }
-
-    return accumulator;
+  map(callback, thisArg) {
+    let ba = new BindingArray(this);
+    ba.bindings = this.bindings.map(callback, thisArg);
+    return ba;
   }
 
-  map(callback) {
-    var mapArray = [];
-    for (let i = 0; i < this.bindings.length; i++) {
-      mapArray.push(callback.call(this.bindings, this.bindings[i], i, this.bindings));
-    }
-    return mapArray;
+  reduce(callback, initialValue) {
+    return this.bindings.reduce(callback, initialValue);
   }
-
-  // // TODO modify all array-like functions to return a new BindingArray
-  // map(callback) {
-  //   let b = new BindingArray(this);
-  //   b.bindings = this.bindings.map(callback);
-  //   return b;
-  // }
 }

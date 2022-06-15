@@ -146,7 +146,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super
       .reduceAssignmentTargetPropertyProperty(node, { name, binding })
       .prependSearchPath(prpName);
-  }
+    }
 
   reduceBindingIdentifier(node) {
     // TODO do something with properties here?
@@ -430,11 +430,14 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     }
     let s = this.fold(scopes, new ScopeState({isObjectAT: true}));
     debugger;
-    if (scopes.length > 1) { // TODO is there a more elegant way? Maybe perfect below reductor? I'm tired and should probably go to bed.
-      // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
-      // e.g. `({a: [x, y]} = {a: [1, 2]})`
-      s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
-    }
+
+    // TODO this or below commented code? Which leads to more straightforward code?
+    s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
+    // if (scopes.length > 1) {
+    //   // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
+    //   // e.g. `({a: [x, y]} = {a: [1, 2]})`
+    //   s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
+    // }
     return s;
   }
 

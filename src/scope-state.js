@@ -266,18 +266,14 @@ export default class ScopeState {
   setRest() {
     let s = new ScopeState(this);
     // TODO do the same for bindings
-    if (s.isArrayAT) {
-      s.atsForParent = s.atsForParent.setRest();
-    } else {
-      s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.setRest()), rest: s.atsForParent.isRest});
-    }
+    s.atsForParent = s.isArrayAT ? s.atsForParent.setRest() : s.atsForParent.map(b => b.setRest());
     return s;
   }
 
   rejectProperties() {
     let s = new ScopeState(this);
     // TODO do the same for bindings
-    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(b => b.isArray ? b : b.rejectProperties()), rest: s.atsForParent.isRest});
+    s.atsForParent = s.atsForParent.map(b => b.isArray ? b : b.rejectProperties());
     return s;
   }
 
@@ -392,13 +388,9 @@ export default class ScopeState {
   }
 
   prependSearchPath(n) {
-    let recursiveCore = (b) => b.isArray ? b.map(recursiveCore) : b.prependSearchPath(n);
-
-    debugger;
-
     let s = new ScopeState(this);
-    s.atsForParent = new BindingArray({bindings: s.atsForParent.map(recursiveCore), rest: s.atsForParent.isRest});
-    s.bindingsForParent = new BindingArray({bindings: s.bindingsForParent.map(recursiveCore), rest: s.bindingsForParent.isRest});
+    s.atsForParent = s.atsForParent.prependSearchPath(n);
+    s.bindingsForParent = s.bindingsForParent.prependSearchPath(n);
     return s;
   }
 
