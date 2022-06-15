@@ -3151,6 +3151,7 @@ suite('unit', () => {
     const js = `
       [a, [b, c], ...rest] = [{x: 1}, [{y: 2}, {z: 3}], {w: 4}, {k: 5}];
       [d, [e, f], ...[rest2]] = [{u: 1}, [{v: 2}, {t: 3}], {s: 4}, {l: 5}];
+      [g, ...[rest3, [rest4]]] = [{m: 2}, {n: 3}, {o: 4}]; // illegal rest4 assignment
     `;
     let script = parseScript(js);
 
@@ -3158,98 +3159,128 @@ suite('unit', () => {
     let scriptScope = globalScope.children[0];
 
     let assignment1 = script.statements[0].expression;
-    let aNode1 = assignment1.binding.elements[0];
-    let bNode1 = assignment1.binding.elements[1].elements[0];
-    let cNode1 = assignment1.binding.elements[1].elements[1];
-    let restNode1 = assignment1.binding.rest;
-    let xNode1 = assignment1.expression.elements[0].properties[0].name;
-    let yNode1 = assignment1.expression.elements[1].elements[0].properties[0].name;
-    let zNode1 = assignment1.expression.elements[1].elements[1].properties[0].name;
+    let aNode = assignment1.binding.elements[0];
+    let bNode = assignment1.binding.elements[1].elements[0];
+    let cNode = assignment1.binding.elements[1].elements[1];
+    let restNode = assignment1.binding.rest;
+    let xNode = assignment1.expression.elements[0].properties[0].name;
+    let yNode = assignment1.expression.elements[1].elements[0].properties[0].name;
+    let zNode = assignment1.expression.elements[1].elements[1].properties[0].name;
 
     let assignment2 = script.statements[1].expression;
-    let dNode1 = assignment2.binding.elements[0];
-    let eNode1 = assignment2.binding.elements[1].elements[0];
-    let fNode1 = assignment2.binding.elements[1].elements[1];
-    let rest2Node1 = assignment2.binding.rest.elements[0];
-    let uNode1 = assignment2.expression.elements[0].properties[0].name;
-    let vNode1 = assignment2.expression.elements[1].elements[0].properties[0].name;
-    let tNode1 = assignment2.expression.elements[1].elements[1].properties[0].name;
-    let sNode1 = assignment2.expression.elements[2].properties[0].name;
+    let dNode = assignment2.binding.elements[0];
+    let eNode = assignment2.binding.elements[1].elements[0];
+    let fNode = assignment2.binding.elements[1].elements[1];
+    let rest2Node = assignment2.binding.rest.elements[0];
+    let uNode = assignment2.expression.elements[0].properties[0].name;
+    let vNode = assignment2.expression.elements[1].elements[0].properties[0].name;
+    let tNode = assignment2.expression.elements[1].elements[1].properties[0].name;
+    let sNode = assignment2.expression.elements[2].properties[0].name;
+
+    let assignment3 = script.statements[2].expression;
+    let gNode = assignment3.binding.elements[0];
+    let rest3Node = assignment3.binding.rest.elements[0];
+    let rest4Node = assignment3.binding.rest.elements[1].elements[0];
+    let mNode = assignment3.expression.elements[0].properties[0].name;
+    let nNode = assignment3.expression.elements[1].properties[0].name;
+    let oNode = assignment3.expression.elements[2].properties[0].name;
 
     { // global scope
       let children = [scriptScope];
-      let through = ['a', 'b', 'c', 'rest', 'd', 'e', 'f', 'rest2'];
+      let through = ['a', 'b', 'c', 'rest', 'd', 'e', 'f', 'rest2', 'g', 'rest3', 'rest4'];
 
       let aProperties = new Map;
       aProperties.set('x', {
         name: 'x',
-        references: [xNode1],
+        references: [xNode],
         properties: new Map,
       });
       let bProperties = new Map;
       bProperties.set('y', {
         name: 'y',
-        references: [yNode1],
+        references: [yNode],
         properties: new Map,
       });
       let cProperties = new Map;
       cProperties.set('z', {
         name: 'z',
-        references: [zNode1],
+        references: [zNode],
         properties: new Map,
       });
 
       let dProperties = new Map;
       dProperties.set('u', {
         name: 'u',
-        references: [uNode1],
+        references: [uNode],
         properties: new Map,
       })
       let eProperties = new Map;
       eProperties.set('v', {
         name: 'v',
-        references: [vNode1],
+        references: [vNode],
         properties: new Map,
       });
       let fProperties = new Map;
       fProperties.set('t', {
         name: 't',
-        references: [tNode1],
+        references: [tNode],
         properties: new Map,
       });
       let rest2Properties = new Map;
       rest2Properties.set('s', {
         name: 's',
-        references: [sNode1],
+        references: [sNode],
+        properties: new Map,
+      });
+
+      let gProperties = new Map;
+      gProperties.set('m', {
+        name: 'm',
+        references: [mNode],
+        properties: new Map,
+      });
+      let rest3Properties = new Map;
+      rest3Properties.set('n', {
+        name: 'n',
+        references: [nNode],
         properties: new Map,
       });
 
       let variables = new Map;
-      variables.set('a', [NO_DECLARATIONS, [aNode1], aProperties]);
-      variables.set('b', [NO_DECLARATIONS, [bNode1], bProperties]);
-      variables.set('c', [NO_DECLARATIONS, [cNode1], cProperties]);
-      variables.set('rest', [NO_DECLARATIONS, [restNode1], NO_PROPERTIES]);
-      variables.set('d', [NO_DECLARATIONS, [dNode1], dProperties]);
-      variables.set('e', [NO_DECLARATIONS, [eNode1], eProperties]);
-      variables.set('f', [NO_DECLARATIONS, [fNode1], fProperties]);
-      variables.set('rest2', [NO_DECLARATIONS, [rest2Node1], rest2Properties]);
+      variables.set('a', [NO_DECLARATIONS, [aNode], aProperties]);
+      variables.set('b', [NO_DECLARATIONS, [bNode], bProperties]);
+      variables.set('c', [NO_DECLARATIONS, [cNode], cProperties]);
+      variables.set('rest', [NO_DECLARATIONS, [restNode], NO_PROPERTIES]);
+      variables.set('d', [NO_DECLARATIONS, [dNode], dProperties]);
+      variables.set('e', [NO_DECLARATIONS, [eNode], eProperties]);
+      variables.set('f', [NO_DECLARATIONS, [fNode], fProperties]);
+      variables.set('rest2', [NO_DECLARATIONS, [rest2Node], rest2Properties]);
+      variables.set('g', [NO_DECLARATIONS, [gNode], gProperties]);
+      variables.set('rest3', [NO_DECLARATIONS, [rest3Node], rest3Properties]);
+      variables.set('rest4', [NO_DECLARATIONS, [rest4Node], NO_PROPERTIES]);
 
       let referenceTypes = new Map;
-      referenceTypes.set(aNode1, Accessibility.WRITE);
-      referenceTypes.set(bNode1, Accessibility.WRITE);
-      referenceTypes.set(cNode1, Accessibility.WRITE);
-      referenceTypes.set(restNode1, Accessibility.WRITE);
-      referenceTypes.set(xNode1, Accessibility.WRITE);
-      referenceTypes.set(yNode1, Accessibility.WRITE);
-      referenceTypes.set(zNode1, Accessibility.WRITE);
-      referenceTypes.set(dNode1, Accessibility.WRITE);
-      referenceTypes.set(eNode1, Accessibility.WRITE);
-      referenceTypes.set(fNode1, Accessibility.WRITE);
-      referenceTypes.set(rest2Node1, Accessibility.WRITE);
-      referenceTypes.set(uNode1, Accessibility.WRITE);
-      referenceTypes.set(vNode1, Accessibility.WRITE);
-      referenceTypes.set(tNode1, Accessibility.WRITE);
-      referenceTypes.set(sNode1, Accessibility.WRITE);
+      referenceTypes.set(aNode, Accessibility.WRITE);
+      referenceTypes.set(bNode, Accessibility.WRITE);
+      referenceTypes.set(cNode, Accessibility.WRITE);
+      referenceTypes.set(restNode, Accessibility.WRITE);
+      referenceTypes.set(xNode, Accessibility.WRITE);
+      referenceTypes.set(yNode, Accessibility.WRITE);
+      referenceTypes.set(zNode, Accessibility.WRITE);
+      referenceTypes.set(dNode, Accessibility.WRITE);
+      referenceTypes.set(eNode, Accessibility.WRITE);
+      referenceTypes.set(fNode, Accessibility.WRITE);
+      referenceTypes.set(rest2Node, Accessibility.WRITE);
+      referenceTypes.set(uNode, Accessibility.WRITE);
+      referenceTypes.set(vNode, Accessibility.WRITE);
+      referenceTypes.set(tNode, Accessibility.WRITE);
+      referenceTypes.set(sNode, Accessibility.WRITE);
+      referenceTypes.set(gNode, Accessibility.WRITE);
+      referenceTypes.set(rest3Node, Accessibility.WRITE);
+      referenceTypes.set(rest4Node, Accessibility.WRITE);
+      referenceTypes.set(mNode, Accessibility.WRITE);
+      referenceTypes.set(nNode, Accessibility.WRITE);
+      referenceTypes.set(oNode, Accessibility.WRITE);
 
       checkScope(globalScope, script, ScopeType.GLOBAL, true, children, through, variables, referenceTypes);
     }

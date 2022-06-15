@@ -88,7 +88,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
     let s = this.fold(scopes, new ScopeState({isArrayAT: true}));
     s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
-    debugger;
     return s;
   }
 

@@ -313,7 +313,8 @@ export default class ScopeState {
       let zip = targets.get(targets.length - 1).isRest ? zipRest : zipStd;
 
       for (let [binding, prop] of zip(targets.bindings, sources)) {
-        if (binding.isArray) {
+        if (binding.isArray && Array.isArray(prop)) {
+          //                   ^ Accounts for illegal statements like `[a, ...[rest, [rest2]]] = [{y: 2}, {z: 3}, {w: 4}]`
           recursiveCore(binding, prop);
         } else {
           if (!binding.acceptProperties || Array.isArray(prop)) {
