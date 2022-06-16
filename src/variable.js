@@ -214,6 +214,7 @@ export class BindingArray { // TODO call all standard array methods without reim
   concat(b) {
     let ba = new BindingArray(this);
     ba.bindings.concat(b);
+    ba.length = ba.bindings.length;
     return ba;
   }
 
@@ -226,8 +227,9 @@ export class BindingArray { // TODO call all standard array methods without reim
   filter(callback, thisArg) {
     let ba = new BindingArray(this);
     ba.bindings = this.bindings.filter(callback, thisArg);
+    ba.length = ba.bindings.length;
     return ba;
-  };
+  }
 
   forEach(callback, thisArg) {
     this.bindings.forEach(callback, thisArg);
