@@ -20,7 +20,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, BindingArray, Property, Variable } from './variable';
+import { Binding, BindingArray, BindingObject, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -142,10 +142,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceAssignmentTargetPropertyProperty(node, { name, binding }) {
     let [prpName] = name.dataProperties.keys();
-    return super
-      .reduceAssignmentTargetPropertyProperty(node, { name, binding })
-      .prependSearchPath(prpName);
-    }
+    let s = super.reduceAssignmentTargetPropertyProperty(node, { name, binding });
+    s.atsForParent = new BindingArray({bindings: [
+      new BindingObject({bindings: new Map([[prpName, binding.atsForParent]])})
+    ]});
+    return s;
+  }
 
   reduceBindingIdentifier(node) {
     // TODO do something with properties here?
@@ -428,15 +430,6 @@ export default class ScopeAnalyzer extends MonoidalReducer {
       scopes = properties;
     }
     let s = this.fold(scopes, new ScopeState({isObjectAT: true}));
-    debugger;
-
-    // TODO this or below commented code? Which leads to more straightforward code?
-    s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
-    // if (scopes.length > 1) {
-    //   // Avoid double wrapping when a single ArrayAssignmentTarget is wrapped in an ObjectAssignmentTarget
-    //   // e.g. `({a: [x, y]} = {a: [1, 2]})`
-    //   s.atsForParent = scopes.reduce((acc, scope) => acc.mergeHierarchical(scope.atsForParent, scope.isArrayAT), new BindingArray());
-    // }
     return s;
   }
 

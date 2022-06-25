@@ -173,7 +173,9 @@ export class BindingArray { // TODO call all standard array methods without reim
   }
 
   setRest() {
-    return  new BindingArray({bindings: this.bindings, isRest: true});
+    let ba = new BindingArray(this);
+    ba.isRest = true;
+    return ba;
   }
 
   get(i) {
@@ -182,6 +184,9 @@ export class BindingArray { // TODO call all standard array methods without reim
 
   /* Monoidal append: merge two BindingArray objects together */
   merge(b) {
+    if (!(b instanceof BindingArray)) {
+      throw new Error('Cannot merge BindingArray with non-BindingArray');
+    }
     return new BindingArray({
       bindings: [...this.bindings, ...b.bindings],
       isRest: this.isRest || b.isRest,
@@ -220,7 +225,7 @@ export class BindingArray { // TODO call all standard array methods without reim
 
   flat(depth = 1) {
     return depth > 0 ?
-      this.bindings.reduce((acc, val) => acc.concat(val.isArray ? val.flat(depth - 1) : val), []) :
+      this.bindings.reduce((acc, val) => acc.concat((val.isArray || val.isObject) ? val.flat(depth - 1) : val), []) :
       [...this.bindings];
   }
 
@@ -243,5 +248,68 @@ export class BindingArray { // TODO call all standard array methods without reim
 
   reduce(callback, initialValue) {
     return this.bindings.reduce(callback, initialValue);
+  }
+}
+
+export class BindingObject {
+  constructor(
+    {
+      bindings = new Map, // Map of BindingArray objects => poor man's multimap
+      isRest = false,
+      searchPath = '',
+    } = {}
+  ) {
+    this.bindings = bindings;
+    this.isRest = isRest;
+    this.searchPath = searchPath;
+    this.isObject = true;
+    this.size = this.bindings.size;
+  }
+
+  setRest() {
+    let bo = new BindingObject(this);
+    bo.isRest = true;
+    return bo;
+  }
+
+  get(k) {
+    return this.bindings.get(k);
+  }
+
+  set(k, v) {
+    let bo = new BindingObject(this);
+    if (bo.bindings.has(k)) {
+      bo.bindings.set(k, (v instanceof BindingArray) ? bo.bindings.get(k).merge(v) : bo.bindings.get(k).concat(v));
+    } else {
+      bo.bindings.set(k, (v instanceof BindingArray) ? v : new BindingArray({bindings: [v]}));
+    }
+    bo.size = bo.bindings.size;
+    return bo;
+  }
+
+  /* Monoidal append: merge two BindingObject objects together */
+  merge(b) {
+    if (!(b instanceof BindingObject)) {
+      throw new Error('Cannot merge BindingObject with non-BindingObject');
+    }
+
+    let bindings = new Map(this.bindings);
+    b.bindings.forEach((v, k) => bindings.set(k, (bindings.has(k)) ? bindings.get(k).merge(v) : v));
+
+    return new BindingObject({
+      bindings: bindings,
+      isRest: this.isRest || b.isRest,
+      searchPath: this.searchPath || b.searchPath
+    });
+  }
+
+  flat(depth = 1) {
+    let acc = [];
+    if (depth > 0) {
+      this.bindings.forEach((v, _) => acc = acc.concat(v.flat(depth - 1)));
+    } else {
+      this.bindings.forEach((v, _) => acc = acc.concat(v));
+    }
+    return acc;
   }
 }
