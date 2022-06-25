@@ -117,6 +117,34 @@ export class Property {
   }
 }
 
+export class PropertiesArray extends Property {
+  constructor(
+    {
+      name = '',
+      references = [],
+      properties = [],
+    } = {}
+  ) {
+    super({name, references});
+    this.properties = properties;
+  }
+
+  concat(b) {
+    if (this === b) {
+      return this;
+    }
+    if (!(b instanceof PropertiesArray)) {
+      throw new Error(`Concatenating properties array to property named ${b.name}!`);
+    }
+
+    return new PropertiesArray({
+      name: this.name,
+      references: this.references.concat(b.references),
+      properties: this.properties.concat(b.properties),
+    });
+  }
+}
+
 export class Binding {
   constructor(
     {
@@ -157,7 +185,7 @@ export class Binding {
 }
 
 // Non-monadic class
-export class BindingArray { // TODO call all standard array methods without reimplementing them in such a dumb way
+export class BindingArray {
   constructor(
     {
       bindings = [],

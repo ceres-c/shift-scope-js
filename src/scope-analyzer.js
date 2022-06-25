@@ -20,7 +20,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, BindingArray, BindingObject, Property, Variable } from './variable';
+import { Binding, BindingArray, BindingObject, PropertiesArray, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -300,8 +300,14 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     //       and use it in mergeDataProperties.
     // TODO: create new data type and pass it to the caller to wrap ArrayExpressions here. Something orthogonal to all Array Bindings.
 
-    s.dataProperties = new Map()
-      .set(k, new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} ) );
+    if (expression.isArrayExpr) {
+      s.dataProperties = new Map()
+        .set(k, new PropertiesArray( {name: p.name, references: p.references, properties: s.prpForParent} ));
+      s.isArrayExpr = false; // Do not propagate
+    } else {
+      s.dataProperties = new Map()
+        .set(k, new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} ));
+    }
     s.prpForParent = [];
     return s;
   }
