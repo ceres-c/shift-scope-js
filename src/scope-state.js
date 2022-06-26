@@ -316,23 +316,23 @@ export default class ScopeState {
         if (binding.isArray && Array.isArray(prop)) {
           //                   ^ Accounts for illegal statements like `[a, ...[rest, [rest2]]] = [{y: 2}, {z: 3}, {w: 4}]`
           recursiveCore(binding, prop);
-        } else {
-          if (!binding.acceptProperties || Array.isArray(prop)) {
-          //   ^                           ^
-          //   |                           e.g. `a = [{b: 1}]`
-          //   e.g. ...rest in ArrayAssignmentTarget
-            continue;
-          }
-
-          let path = binding.path;
-          let current = s.getNodeFromPath(path);
-
-          let e = current.empty();
-          e.name = current.name;
-          e.properties = prop;
-
-          s.setNodeInPath(path, current.concat(e));
+          continue;
         }
+        if (!binding.acceptProperties || Array.isArray(prop)) {
+        //   ^                           ^
+        //   |                           e.g. `a = [{b: 1}]`
+        //   e.g. ...rest in ArrayAssignmentTarget
+          continue;
+        }
+
+        let path = binding.path;
+        let current = s.getNodeFromPath(path);
+
+        let e = current.empty();
+        e.name = current.name;
+        e.properties = prop;
+
+        s.setNodeInPath(path, current.concat(e));
       }
     }
 
