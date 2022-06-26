@@ -52,6 +52,7 @@ export default class ScopeState {
   constructor(
     {
       freeIdentifiers = new Map,
+      freeProperties = new Map, // Map of static/computed DataProperties from ObjectExpressions or property names in Object AssignmentTargets/Bindings
       functionScopedDeclarations = new MultiMap,
       blockScopedDeclarations = new MultiMap,
       functionDeclarations = new MultiMap, // function declarations are special: they are lexical in blocks and var-scoped at the top level of functions and scripts.
@@ -62,8 +63,7 @@ export default class ScopeState {
       potentiallyVarScopedFunctionDeclarations = new MultiMap, // for B.3.3
       hasParameterExpressions = false,
       lastBinding = null, // Keep track of the path(s) to the most recent identifier(s) to which references or subproperties are added.
-      dataProperties = new Map, // TODO change name? This is used for both properties in ObjectExpressions as target and sources
-      prpForParent = [], // List of dataProperties maps (or list of maps) from child ObjectExpression elements (order preserved)
+      prpForParent = [], // List of freeProperties maps from child ObjectExpression elements (order preserved)
       isArrayAT = false, // Marks wether this state comes from an ArrayAssignmentTarget
       isArrayExpr = false, // Marks wether this state comes from an ArrayExpression
       isObjectAT = false, // Marks wether this state comes from an ObjectAssignmentTarget
@@ -80,7 +80,7 @@ export default class ScopeState {
     this.potentiallyVarScopedFunctionDeclarations = potentiallyVarScopedFunctionDeclarations;
     this.hasParameterExpressions = hasParameterExpressions;
     this.lastBinding = lastBinding;
-    this.dataProperties = dataProperties;
+    this.freeProperties = freeProperties;
     this.prpForParent = prpForParent;
     this.isArrayAT = isArrayAT;
     this.isArrayExpr = isArrayExpr;
@@ -123,7 +123,7 @@ export default class ScopeState {
       ),
       hasParameterExpressions: this.hasParameterExpressions || b.hasParameterExpressions,
       lastBinding: this.lastBinding || b.lastBinding,
-      dataProperties: mergeMonadMap(this.dataProperties, b.dataProperties),
+      freeProperties: mergeMonadMap(this.freeProperties, b.freeProperties),
       prpForParent: this.prpForParent.concat(b.prpForParent),
       isArrayAT: this.isArrayAT || b.isArrayAT,
       isArrayExpr: this.isArrayExpr || b.isArrayExpr,
@@ -279,20 +279,20 @@ export default class ScopeState {
 
   addDataProperty(property) {
     let s = new ScopeState(this);
-    let current = s.dataProperties.get(property.name) || new Property({name: property.name});
-    s.dataProperties.set(property.name, current.concat(property));
+    let current = s.freeProperties.get(property.name) || new Property({name: property.name});
+    s.freeProperties.set(property.name, current.concat(property));
     return s;
   }
 
-  wrapDataProperties() {
+  wrapFreeProperties() {
     let s = new ScopeState(this);
-    s.prpForParent = [new Map(s.dataProperties)];
-    s.dataProperties = new Map;
+    s.prpForParent = [new Map(s.freeProperties)];
+    s.freeProperties = new Map;
     return s;
   }
 
   // Side effect: will delete all prpForParent, when this.isArrayAT === true
-  mergeDataProperties() {
+  mergeFreeProperties() {
     const zipStd = (a, b) => Array.from(Array(Math.min(a.length, b.length)), (_, i) => [a[i], b[i]]);
     const zipRest = (a, b) => Array.from(Array(b.length), (_, i) => [a[Math.min(i, a.length - 1)], b[i]]);
 

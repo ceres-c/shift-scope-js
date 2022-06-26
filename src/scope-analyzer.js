@@ -116,7 +116,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     debugger;
     return s
       .mergeObjectAssignment()
-      .mergeDataProperties()
+      .mergeFreeProperties()
       .withoutAtsForParent();
   }
 
@@ -132,7 +132,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
         freeIdentifiers: new Map([ [bName, new Variable({name: bName})] ])
       });
       let s = this.fold([binding, init], i)
-        .mergeDataProperties()
+        .mergeFreeProperties()
         .withParameterExpressions();
       s.prpForParent = [];
       return s;
@@ -141,7 +141,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceAssignmentTargetPropertyProperty(node, { name, binding }) {
-    let [prpName] = name.dataProperties.keys();
+    let [prpName] = name.freeProperties.keys();
     let s = super.reduceAssignmentTargetPropertyProperty(node, { name, binding });
     s.atsForParent = new BindingArray({bindings: [
       new BindingMap({bindings: new Map([[prpName, binding.atsForParent]])})
@@ -273,7 +273,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceComputedPropertyName(node, { expression }) {
     if (node.expression.type.includes('Literal')) {
       return expression.concat(new ScopeState({
-        dataProperties: new Map().set(
+        freeProperties: new Map().set(
           node.expression.value.toString(), // JS do not use strings here, but we do to retain a consistent structure
           new Property({ name: node.expression.value.toString(), references: [ new Reference(node, Accessibility.WRITE) ], })
         )
@@ -281,7 +281,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     } else {
       return expression
         .concat(new ScopeState({
-          dataProperties: new Map().set(
+          freeProperties: new Map().set(
             '*dynamic*',
             new Property({ name: '*dynamic*', references: [ new Reference(node, Accessibility.WRITE) ], })
           )
@@ -293,12 +293,12 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   reduceDataProperty(node, { name, expression }) {
     let s = new ScopeState().concat(name).concat(expression);
 
-    let [k, p] = [...s.dataProperties][0];
+    let [k, p] = [...s.freeProperties][0];
     // TODO: write generic method to associate an ArrayBinding to an ArrayExpression at any given depth level
-    //       and use it in mergeDataProperties.
+    //       and use it in mergeFreeProperties.
     // TODO: create new data type and pass it to the caller to wrap ArrayExpressions here. Something orthogonal to all Array Bindings.
 
-    s.dataProperties = new Map().set(
+    s.freeProperties = new Map().set(
       k,
       expression.isArrayExpr ?
         new PropertyArray( {name: p.name, references: p.references, properties: s.prpForParent} ) :
@@ -445,7 +445,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
   }
 
   reduceObjectExpression(node, { properties }) {
-    return this.fold(properties).wrapDataProperties();
+    return this.fold(properties).wrapFreeProperties();
   }
 
   reduceSetter(node, { name, param, body }) {
@@ -462,7 +462,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     return super
       .reduceShorthandProperty(node, { name })
       .concat(new ScopeState({
-        dataProperties: new Map().set(
+        freeProperties: new Map().set(
           nodeName,
           new Property({ name: nodeName, references: [ new Reference(node, Accessibility.WRITE) ], })
         )
@@ -491,7 +491,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceStaticPropertyName(node) {
     return new ScopeState({
-      dataProperties: new Map().set(
+      freeProperties: new Map().set(
         node.value,
         new Property({ name: node.value, references: [ new Reference(node, Accessibility.WRITE) ], })
       )
@@ -550,7 +550,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
   reduceVariableDeclarationStatement(node, { declaration }) {
     return declaration
-      .mergeDataProperties()
+      .mergeFreeProperties()
       .withoutBindingsForParent();
   }
 
@@ -559,7 +559,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     if (init) {
       return s.addReferences(Accessibility.WRITE, true);
       // TODO merge properties for both objects and arrays as in reduceAssignmentExpression
-      // .mergeObjectAssignment().mergeDataProperties()
+      // .mergeObjectAssignment().mergeFreeProperties()
 
       // TESTS:
       //  var {a: {b: c}} = {a: {b: 1}}; => c = 1
