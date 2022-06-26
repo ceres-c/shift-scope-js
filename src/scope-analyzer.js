@@ -294,20 +294,17 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let s = new ScopeState().concat(name).concat(expression);
 
     let [k, p] = [...s.dataProperties][0];
-    // WARNING above line breaks when a DataProperty contains an ArrayExpression
-    // e.g. `({y: [q, k]} = {y: [{z: 2}, {w: 3}]});`
     // TODO: write generic method to associate an ArrayBinding to an ArrayExpression at any given depth level
     //       and use it in mergeDataProperties.
     // TODO: create new data type and pass it to the caller to wrap ArrayExpressions here. Something orthogonal to all Array Bindings.
 
-    if (expression.isArrayExpr) {
-      s.dataProperties = new Map()
-        .set(k, new PropertyArray( {name: p.name, references: p.references, properties: s.prpForParent} ));
-      s.isArrayExpr = false; // Do not propagate
-    } else {
-      s.dataProperties = new Map()
-        .set(k, new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} ));
-    }
+    s.dataProperties = new Map().set(
+      k,
+      expression.isArrayExpr ?
+        new PropertyArray( {name: p.name, references: p.references, properties: s.prpForParent} ) :
+        new Property( {name: p.name, references: p.references, properties: s.prpForParent[0]} )
+    );
+    s.isArrayExpr = false; // Do not propagate
     s.prpForParent = [];
     return s;
   }
