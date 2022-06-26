@@ -117,28 +117,30 @@ export class Property {
   }
 }
 
-export class PropertiesArray extends Property {
+export class PropertyArray {
   constructor(
     {
-      name = '',
       references = [],
       properties = [],
     } = {}
   ) {
-    super({name, references});
+    this.references = references;
     this.properties = properties;
+    this.isArray = true;
   }
 
+  /*
+   * Monoidal append: merge two PropertyArray objects together
+   */
   concat(b) {
     if (this === b) {
       return this;
     }
-    if (!(b instanceof PropertiesArray)) {
+    if (!(b instanceof PropertyArray)) {
       throw new Error(`Concatenating properties array to property named ${b.name}!`);
     }
 
-    return new PropertiesArray({
-      name: this.name,
+    return new PropertyArray({
       references: this.references.concat(b.references),
       properties: this.properties.concat(b.properties),
     });
@@ -279,7 +281,7 @@ export class BindingArray {
   }
 }
 
-export class BindingObject {
+export class BindingMap {
   constructor(
     {
       bindings = new Map, // Map of BindingArray objects => poor man's multimap
@@ -295,7 +297,7 @@ export class BindingObject {
   }
 
   setRest() {
-    let bo = new BindingObject(this);
+    let bo = new BindingMap(this);
     bo.isRest = true;
     return bo;
   }
@@ -305,7 +307,7 @@ export class BindingObject {
   }
 
   set(k, v) {
-    let bo = new BindingObject(this);
+    let bo = new BindingMap(this);
     if (bo.bindings.has(k)) {
       bo.bindings.set(k, (v instanceof BindingArray) ? bo.bindings.get(k).merge(v) : bo.bindings.get(k).concat(v));
     } else {
@@ -315,16 +317,16 @@ export class BindingObject {
     return bo;
   }
 
-  /* Monoidal append: merge two BindingObject objects together */
+  /* Monoidal append: merge two BindingMap objects together */
   merge(b) {
-    if (!(b instanceof BindingObject)) {
-      throw new Error('Cannot merge BindingObject with non-BindingObject');
+    if (!(b instanceof BindingMap)) {
+      throw new Error('Cannot merge BindingMap with non-BindingMap');
     }
 
     let bindings = new Map(this.bindings);
     b.bindings.forEach((v, k) => bindings.set(k, (bindings.has(k)) ? bindings.get(k).merge(v) : v));
 
-    return new BindingObject({
+    return new BindingMap({
       bindings: bindings,
       isRest: this.isRest || b.isRest,
       searchPath: this.searchPath || b.searchPath

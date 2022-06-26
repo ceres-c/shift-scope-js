@@ -20,7 +20,7 @@ import { Accessibility, Reference } from './reference';
 import { DeclarationType } from './declaration';
 import { ScopeType } from './scope';
 import StrictnessReducer from './strictness-reducer';
-import { Binding, BindingArray, BindingObject, PropertiesArray, Property, Variable } from './variable';
+import { Binding, BindingArray, BindingMap, PropertyArray, Property, Variable } from './variable';
 
 function asSimpleFunctionDeclarationName(statement) {
   return statement.type === 'FunctionDeclaration' && !statement.isGenerator && !statement.isAsync
@@ -144,7 +144,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
     let [prpName] = name.dataProperties.keys();
     let s = super.reduceAssignmentTargetPropertyProperty(node, { name, binding });
     s.atsForParent = new BindingArray({bindings: [
-      new BindingObject({bindings: new Map([[prpName, binding.atsForParent]])})
+      new BindingMap({bindings: new Map([[prpName, binding.atsForParent]])})
     ]});
     return s;
   }
@@ -302,7 +302,7 @@ export default class ScopeAnalyzer extends MonoidalReducer {
 
     if (expression.isArrayExpr) {
       s.dataProperties = new Map()
-        .set(k, new PropertiesArray( {name: p.name, references: p.references, properties: s.prpForParent} ));
+        .set(k, new PropertyArray( {name: p.name, references: p.references, properties: s.prpForParent} ));
       s.isArrayExpr = false; // Do not propagate
     } else {
       s.dataProperties = new Map()
